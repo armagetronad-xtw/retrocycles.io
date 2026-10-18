@@ -107,5 +107,13 @@ private:
 };
 
 
+#ifdef __EMSCRIPTEN__
+// browser build (gBrowserApi.cpp): the pending votes on this client and the
+// two menu actions, without the menu. id is eVoteItem::GetID().
+typedef void se_BrowserVoteVisitor( int id, tString const & description, tString const & details, void * context );
+void se_BrowserVisitVotes( se_BrowserVoteVisitor * visit, void * context );
+bool se_BrowserVote( int id, bool accept );
+#endif
+
 #endif	// ArmageTron_VOTER_H
 

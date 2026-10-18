@@ -807,7 +807,7 @@ bool gServerMenuItem::Event( SDL_Event& event )
         default:
             break;
         }
-        switch (event.key.keysym.unicode)
+        switch (sr_KeysymUnicode(event.key.keysym))
         {
         case '+':
             if ( server )

@@ -130,6 +130,18 @@ static bool se_RimWrapY=true;
 static tSettingItem<bool> se_RimWrapYConf
 ("RIM_WALL_WRAP_Y",se_RimWrapY);
 
+static bool se_renderRim = true;
+
+void eWallRim::SetRenderRim( bool render )
+{
+    se_renderRim = render;
+}
+
+bool eWallRim::GetRenderRim()
+{
+    return se_renderRim;
+}
+
 #ifndef DEDICATED
 static rDisplayList se_rimDisplayList;
 
@@ -148,6 +160,11 @@ static rFileTexture se_RimWallWrap(rTextureGroups::TEX_WALL,"textures/rim_wall.p
 void eWallRim::RenderAll( eCamera * camera )
 {
 #ifndef DEDICATED
+    if ( !se_renderRim )
+    {
+        return;
+    }
+
     // call or fill display list
     if ( se_rimDisplayList.Call() )
     {

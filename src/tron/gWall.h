@@ -278,6 +278,32 @@ private:
     int displayListInhibition_;
 };
 
+#ifndef DEDICATED
+//! trail colour multiplier of the wall render passes; 1 is the wall itself.
+//! The extra passes of the modern arena look (gCycle.cpp: FLOOR_REFLECT,
+//! WALL_CONTACT_GLOW) draw the same geometry dimmed.
+extern REAL sg_wallRenderScale;
+
+//! colour multiplier of the wall vertices at the far edge (z = height) of the
+//! extra pass, blended linearly from sg_wallRenderScale at the floor: what
+//! turns the mirrored trail from a second wall into a smear that fades out.
+extern REAL sg_wallRenderTopScale;
+
+//! a distance ramp for the extra pass, in grid units around
+//! sg_wallRenderOrigin: a vertex nearer than sg_wallRenderRampNear contributes
+//! nothing, one past sg_wallRenderRampFar contributes in full. Off while
+//! far <= near. WALL_EMIT needs it because the same additive top-up that makes
+//! a trail read as a light source across the arena blows a trail standing next
+//! to the camera out to white (gCycle.cpp).
+extern eCoord sg_wallRenderOrigin;
+extern REAL sg_wallRenderRampNear;
+extern REAL sg_wallRenderRampFar;
+
+//! set while such an extra pass runs: the walls were already drawn this frame,
+//! so the pass must not expire one or touch the display list bookkeeping.
+extern bool sg_wallRenderExtraPass;
+#endif
+
 extern tList<gNetPlayerWall> sg_netPlayerWalls;
 extern tList<gNetPlayerWall> sg_netPlayerWallsGridded;
 

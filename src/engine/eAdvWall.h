@@ -71,7 +71,10 @@ public:
     static bool IsBound(const eCoord &x,REAL offset=0);
 
     //! renders all rim walls
-    static void RenderAll( eCamera * camera ); 
+    static void RenderAll( eCamera * camera );
+    //! turns RenderAll on or off; bounds and collisions are unaffected (default on)
+    static void SetRenderRim( bool render );
+    static bool GetRenderRim();
     //! destroys the display list (call when geometry is updated)
     static void DestroyDisplayList( int inhibitGeneration );
     static void DestroyDisplayList() { DestroyDisplayList( 3 ); }

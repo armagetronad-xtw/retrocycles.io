@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "eGrid.h"
 #include "tRandom.h"
 #include "tMath.h"
+#include "tConfiguration.h"
 
 static eWavData explode("moviesounds/dietron.wav","sound/expl.wav");
 
@@ -337,6 +338,11 @@ static tInitExit ie_exp(&init_exp);
 
 bool sg_crashExplosion = true;
 
+// how far the rays fly, as a fraction of the stock 200 units (the browser's
+// attract scene shortens them: they streaked across its stadium)
+REAL sg_explosionRayLength = 1;
+static tSettingItem< REAL > sg_explosionRayLengthConf( "EXPLOSION_RAY_LENGTH", sg_explosionRayLength );
+
 #ifndef DEDICATED
 void gExplosion::Render(const eCamera *cam){
 #ifdef USE_PARTICLES
@@ -354,8 +360,8 @@ void gExplosion::Render(const eCamera *cam){
         if (fade<0) fade=0;
         if (fade>1) fade=1;
 
-        a1*=100;
-        e*=100;
+        a1*=100*sg_explosionRayLength;
+        e*=100*sg_explosionRayLength;
 
         ModelMatrix();
         glPushMatrix();

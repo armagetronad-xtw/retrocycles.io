@@ -84,6 +84,7 @@ public:							// public configuration options
 
     void SetLocked( bool locked );  // sets the lock status (whether invitations are required)
     bool IsLocked() const;          // returns the lock status
+    int MaxPlayers() const { return maxPlayersLocal; } // the player limit in effect (synced from the server)
 
     void Invite( ePlayerNetID * player );                // invite the player to join
     void UnInvite( ePlayerNetID * player );              // revoke an invitation

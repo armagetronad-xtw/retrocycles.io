@@ -189,6 +189,8 @@ static void infinity_xy_plane(eCoord const & pos, const eCoord &dir,REAL h=0){
 
 static REAL z=0;
 
+static eGrid::SceneryRenderer * se_sceneryRenderer = NULL;
+
 
 int           eGrid::NumberOfCameras(){return cameras.Len();}
 const eCoord& eGrid::CameraPos(int i){return cameras(i)->CameraPos();}
@@ -488,6 +490,14 @@ void eGrid::display_simple( int viewer,bool floor,
             su_FetchAndStoreSDLInput();
     
             eWallRim::RenderAll( cameras(viewer) );
+
+            if ( se_sceneryRenderer )
+            {
+                ( *se_sceneryRenderer )( this, cameras(viewer) );
+                TexMatrix();
+                glLoadIdentity();
+                ModelMatrix();
+            }
         }
 
         if (sr_lowerSky && sr_highRim){
@@ -612,6 +622,11 @@ void eGrid::display_simple( int viewer,bool floor,
 
 }
 #endif
+
+void eGrid::SetSceneryRenderer( SceneryRenderer * renderer )
+{
+    se_sceneryRenderer = renderer;
+}
 
 void eGrid::Render( eCamera* cam, int viewer, REAL& zNear ){
     if (!sr_glOut)

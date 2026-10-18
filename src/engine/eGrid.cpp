@@ -45,6 +45,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tRecorder.h"
 
 #include <vector>
+#include <algorithm>
 #include <set>
 
 #define SMALL_FLOAT 1E-30
@@ -333,16 +334,77 @@ class eReplacementStorage : public eReplacementStorageBase
 {
 };
 
+// faces replaced while other faces' replacement arrays held them. Their replacements went to those
+// arrays directly (se_LinkFaces); se_DetachReplacedFaces takes them out of the arrays once the grid
+// change is over (a replaced face can get a second replacement until then).
+static std::vector< tJUST_CONTROLLED_PTR< eFace > > se_detachQueue;
+
+static void se_StoreReplacement( eFace* holder, eFace* replacement )
+{
+    std::vector< eFace* >& parents = replacement->replacementParents_;
+    if ( std::find( parents.begin(), parents.end(), holder ) != parents.end() )
+        return;
+
+    holder->GetReplacementStorage().push_back( replacement );
+    parents.push_back( holder );
+}
+
 void se_LinkFaces( tControlledPTR< eFace >& old, eFace* replacement )
 {
     tASSERT( old != replacement );
 
     // we only need to store an eFace if it is referenced by something different than
-    // the pointer we got it by
-    if ( old->GetRefcount() > 1 )
+    // the pointer we got it by, the replacement arrays holding it and the detach queue
+    int arrays = old->replacementParents_.size();
+    if ( old->GetRefcount() - arrays - ( old->detachQueued_ ? 1 : 0 ) > 1 )
     {
-        eReplacementStorage& storage = old->GetReplacementStorage();
-        storage.push_back( replacement );
+        se_StoreReplacement( old, replacement );
+    }
+
+    // a face that was itself stored as a replacement hands its replacements to the arrays holding
+    // it and leaves them (se_DetachReplacedFaces), so a stale reference to an old face no longer
+    // keeps every face that ever replaced it alive. Objects still find their new face by direction,
+    // which keeps them on their side of a wall they are grinding.
+    if ( arrays > 0 )
+    {
+        for ( std::vector< eFace* >::const_iterator i = old->replacementParents_.begin(); i != old->replacementParents_.end(); ++i )
+        {
+            se_StoreReplacement( *i, replacement );
+        }
+
+        if ( !old->detachQueued_ )
+        {
+            old->detachQueued_ = true;
+            se_detachQueue.push_back( static_cast< eFace* >( old ) );
+        }
+    }
+}
+
+// takes replaced faces out of the replacement arrays that held them (see se_LinkFaces)
+static void se_DetachReplacedFaces()
+{
+    std::vector< tJUST_CONTROLLED_PTR< eFace > > queue;
+    queue.swap( se_detachQueue );
+
+    for ( std::vector< tJUST_CONTROLLED_PTR< eFace > >::iterator q = queue.begin(); q != queue.end(); ++q )
+    {
+        eFace* face = *q;
+        face->detachQueued_ = false;
+
+        std::vector< eFace* > parents;
+        parents.swap( face->replacementParents_ );
+        for ( std::vector< eFace* >::iterator p = parents.begin(); p != parents.end(); ++p )
+        {
+            eReplacementStorage& storage = (*p)->GetReplacementStorage();
+            for ( eReplacementStorage::iterator i = storage.begin(); i != storage.end(); )
+            {
+                eFace* stored = *i;
+                if ( stored == face )
+                    i = storage.erase( i );
+                else
+                    ++i;
+            }
+        }
     }
 }
 
@@ -463,6 +525,18 @@ eFace::~eFace()
     Unlink();
     //	se_EraseFace( this );
 
+    if ( replacementStorage )
+        for ( eReplacementStorage::iterator i = replacementStorage->begin(); i != replacementStorage->end(); ++i )
+        {
+            eFace* stored = *i;
+            if ( stored )
+            {
+                std::vector< eFace* >& parents = stored->replacementParents_;
+                std::vector< eFace* >::iterator found = std::find( parents.begin(), parents.end(), this );
+                if ( found != parents.end() )
+                    parents.erase( found );
+            }
+        }
     delete replacementStorage;
 }
 
@@ -2042,7 +2116,9 @@ void eGrid::SimplifyNum(int e){
 
 #endif // SIMPLIFY
 
-void eGrid::SimplifyAll(int count){
+void eGrid::SimplifyAll(int count, int guaranteed){
+    se_DetachReplacedFaces();
+
     if (requestCleanup)
     {
         requestCleanup = false;
@@ -2055,6 +2131,11 @@ void eGrid::SimplifyAll(int count){
 
     // try to simplify at least one edge
     se_simplifyEdges++;
+
+    // a grid whose expired walls rarely simplify away earns few credits, and the walls then stay
+    // forever in long respawn rounds
+    if ( se_simplifyEdges < guaranteed )
+        se_simplifyEdges = guaranteed;
 
     for(;count>0 && se_simplifyEdges>0;count--,se_simplifyEdges--){
         counter--;
@@ -2142,6 +2223,7 @@ void eGrid::Clear(){
     a=b=c=NULL;
 
     //	se_faceReplacements.clear();
+    se_DetachReplacedFaces();
 }
 
 void eGrid::Grow()

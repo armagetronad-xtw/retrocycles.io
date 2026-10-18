@@ -31,6 +31,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "eTeam.h"
 #include "tSysTime.h"
 #include "gGame.h"
+#include <deque>
+#ifdef __EMSCRIPTEN__
+#include "gBrowser.h"
+#endif
 #include "rTexture.h"
 #include "gWall.h"
 #include "rConsole.h"
@@ -72,6 +76,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "gParser.h"
 #include "tResourceManager.h"
 #include "nAuthentication.h"
+#include "gPlatformEvents.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -1764,20 +1769,55 @@ void s_Timestep(eGrid *grid, REAL time,bool cam){
 }
 
 #ifndef DEDICATED
+// ARENA_HAZE <end distance>, 0 off: linear GL fog over the whole arena view,
+// so the far end of a trail dissolves instead of staying crisp to the horizon.
+// ARENA_HAZE_START is where it begins (0: a quarter of the end distance), both
+// in grid units; ARENA_HAZE_RED/GREEN/BLUE is what it fades into. Emissive
+// draws fade out rather than pick the colour up (src/render/rGLES2.cpp).
+// The infinite floor plane is drawn with vertices at infinity (w == 0), whose
+// eye distance is not a distance at all, so the floor is not hazed - only the
+// walls, the cycles and the rim.
+static REAL sg_arenaHaze = 0;
+static tSettingItem< REAL > sg_arenaHazeConf( "ARENA_HAZE", sg_arenaHaze );
+static REAL sg_arenaHazeStart = 0;
+static tSettingItem< REAL > sg_arenaHazeStartConf( "ARENA_HAZE_START", sg_arenaHazeStart );
+static REAL sg_arenaHazeRed = .03, sg_arenaHazeGreen = .05, sg_arenaHazeBlue = .09;
+static tSettingItem< REAL > sg_arenaHazeRedConf( "ARENA_HAZE_RED", sg_arenaHazeRed );
+static tSettingItem< REAL > sg_arenaHazeGreenConf( "ARENA_HAZE_GREEN", sg_arenaHazeGreen );
+static tSettingItem< REAL > sg_arenaHazeBlueConf( "ARENA_HAZE_BLUE", sg_arenaHazeBlue );
+
+// linear, so the per vertex fog of the browser's GL layer is exact across a
+// long wall quad (the factor is linear in eye z and the varying is
+// interpolated perspective correctly)
+void sg_ArenaHazeBegin()
+{
+    if ( sg_arenaHaze <= 0 )
+        return;
+
+    REAL start = sg_arenaHazeStart > 0 ? sg_arenaHazeStart : sg_arenaHaze * .25;
+    GLfloat haze[4] = { static_cast< GLfloat >( sg_arenaHazeRed ),
+                        static_cast< GLfloat >( sg_arenaHazeGreen ),
+                        static_cast< GLfloat >( sg_arenaHazeBlue ), 1 };
+    glFogi( GL_FOG_MODE, GL_LINEAR );
+    glFogf( GL_FOG_START, static_cast< GLfloat >( start ) );
+    glFogf( GL_FOG_END, static_cast< GLfloat >( sg_arenaHaze ) );
+    glFogfv( GL_FOG_COLOR, haze );
+    glEnable( GL_FOG );
+}
+
+void sg_ArenaHazeEnd()
+{
+    if ( sg_arenaHaze > 0 )
+        glDisable( GL_FOG );
+}
+
 void RenderAllViewports(eGrid *grid){
     rViewportConfiguration *conf=rViewportConfiguration::CurrentViewportConfiguration();
 
     if(sr_glOut){
         sr_ResetRenderState();
 
-        // enable distance based fog
-        /*
-        glFogi( GL_FOG_MODE, GL_EXP );
-        glFogf( GL_FOG_DENSITY, .01/gArena::SizeMultiplier() );
-        GLfloat black[3]={0,0,0};
-        glFogfv( GL_FOG_COLOR, black );
-        glEnable( GL_FOG );
-        */
+        sg_ArenaHazeBegin();
 
         const tList<eCamera>& cameras = grid->Cameras();
 
@@ -1790,7 +1830,7 @@ void RenderAllViewports(eGrid *grid){
             else con << "hey! viewport " << i << " does not exist!\n";
         }
 
-        // glDisable( GL_FOG );
+        sg_ArenaHazeEnd();
     }
 
     // render the console and scores so it appears behind the global HUD
@@ -1916,6 +1956,7 @@ void sg_HostGame(){
     }
 
     sn_SetNetState(nSERVER);
+    gPlatformEvents::ServerStarted();
 
     update_settings();
     ePlayerNetID::CompleteRebuild();
@@ -1989,6 +2030,10 @@ static tString sg_roundConsoleMessage("");
 static tConfItemLine sn_roundCcM1_ci("ROUND_CONSOLE_MESSAGE",sg_roundConsoleMessage);
 
 static bool sg_RequestedDisconnection = false;
+#ifdef __EMSCRIPTEN__
+// the round rhythm for the page (sg_BrowserTakeRoundEvent): true = a round came into play
+static std::deque< bool > sg_browserRoundEvents;
+#endif
 
 static bool sg_NetworkError( const tOutput& title, const tOutput& message, REAL timeout )
 {
@@ -2039,6 +2084,7 @@ void sg_Receive()
         // to close the socket altogether, but that opens another can of worms.
         sn_DiscardFromControlSocket();
     }
+    ePlatform::Drain();
 }
 
 static void sg_StopQuickExit()
@@ -3093,6 +3139,13 @@ void gGame::SyncState(unsigned short state){
 
 
 void gGame::SetState(unsigned short act,unsigned short next){
+#ifdef __EMSCRIPTEN__
+    // the page's `round` event (gBrowserApi.cpp): every entry into and exit from play, in
+    // order. Queued, not sampled: a standalone game walks from GS_PLAY through the next
+    // round's setup back into GS_PLAY within one frame. Nothing while the game is being left.
+    if ( !sg_RequestedDisconnection && ( act == GS_PLAY ) != ( state == GS_PLAY ) )
+        sg_browserRoundEvents.push_back( act == GS_PLAY );
+#endif
     state=act;
 #ifdef DEBUG
     //con << "Entering gamestate " << state
@@ -3139,6 +3192,14 @@ static eLadderLogWriter sg_newRoundWriter("NEW_ROUND", true);
 static eLadderLogWriter sg_newMatchWriter("NEW_MATCH", true);
 static eLadderLogWriter sg_waitForExternalScriptWriter("WAIT_FOR_EXTERNAL_SCRIPT", true);
 
+#ifdef __EMSCRIPTEN__
+// the two post-connect syncs of GS_CREATE_OBJECTS, run from the frame callback
+static int sg_browserSyncsPending = 0;
+// the asynchronous map fetch of GS_CREATE_GRID (tResourceManager::BrowserPrefetch*)
+static bool sg_browserFetchPending = false;
+static bool sg_browserFetchTried = false;
+#endif
+
 void gGame::StateUpdate(){
 
     //	if (state==GS_CREATED)
@@ -3146,6 +3207,26 @@ void gGame::StateUpdate(){
 
     while ( sg_AbeforeB( state, stateNext ) && goon )
     {
+#ifdef __EMSCRIPTEN__
+        // a sync started by a previous state is still running: resume next frame
+        if ( sg_browserSyncsPending > 0 )
+        {
+            if ( !sn_SyncPoll() )
+                return;
+            if ( --sg_browserSyncsPending > 0 )
+            {
+                sn_SyncBegin(sg_Timeout*.1,true);
+                return;
+            }
+        }
+        // the map is being fetched: GS_CREATE_GRID resumes when it is in the cache
+        if ( sg_browserFetchPending )
+        {
+            if ( !tResourceManager::BrowserPrefetchPoll() )
+                return;
+            sg_browserFetchPending = false;
+        }
+#endif
 	#ifdef CONNECTION_STRESS
         if ( sg_ConnectionStress )
         {
@@ -3245,7 +3326,13 @@ void gGame::StateUpdate(){
 
             // wait extra long for the clients to delete the grid; they really need to be
             // synced this time
+#ifdef __EMSCRIPTEN__
+            // finished from the next frames on, see the top of the loop
+            sn_SyncBegin( sg_Timeout*.4, true );
+            sg_browserSyncsPending = 1;
+#else
             sn_Sync( sg_Timeout*.4, true );
+#endif
 
             SetState(GS_CREATE_GRID,GS_CAMERA);
             break;
@@ -3253,6 +3340,17 @@ void gGame::StateUpdate(){
         case GS_CREATE_GRID:
             // sr_con.autoDisplayAtNewline=true;
 
+#ifdef __EMSCRIPTEN__
+            // a map that is not in the cache is fetched first (once; a failed
+            // fetch falls through to the native failure path)
+            if ( !sg_browserFetchTried && tResourceManager::BrowserPrefetchBegin( mapuri, mapfile ) )
+            {
+                sg_browserFetchTried = true;
+                sg_browserFetchPending = true;
+                return;
+            }
+            sg_browserFetchTried = false;
+#endif
             sg_ParseMap( aParser );
 
             sn_Statistics();
@@ -3304,8 +3402,14 @@ void gGame::StateUpdate(){
             SetState(GS_TRANSFER_OBJECTS,GS_CAMERA);
 
             if (sn_GetNetState() == nCLIENT && just_connected){
+#ifdef __EMSCRIPTEN__
+                // polled at the top of the loop, see sg_browserSyncsPending
+                sn_SyncBegin(sg_Timeout*.1,true);
+                sg_browserSyncsPending = 2;
+#else
                 sn_Sync(sg_Timeout*.1,true);
                 sn_Sync(sg_Timeout*.1,true);
+#endif
             }
             just_connected=false;
 
@@ -3508,6 +3612,65 @@ void gGame::StateUpdate(){
             NetSyncIdle();
         }
     }
+}
+
+// a server that respawns dead cycles RESPAWN_TIME seconds after they die (the Retrocycles
+// server line) sends its browser clients the setting; -1 everywhere else
+static REAL sg_respawnTime = -1;
+static nSettingItem< REAL > sg_respawnTimeConf( "RESPAWN_TIME", sg_respawnTime );
+
+bool sg_RespawnIn( ePlayerNetID const * player, REAL & seconds )
+{
+    if ( sg_respawnTime < 0 || sn_GetNetState() != nCLIENT || !player || !player->CanRespawn() )
+        return false;
+    if ( !sg_currentGame || sg_currentGame->GetState() != GS_PLAY || se_GameTime() <= 0 )
+        return false;
+    eGameObject const * cycle = player->Object();
+    if ( !cycle || cycle->Alive() )
+        return false;
+    seconds = cycle->DeathTime() + sg_respawnTime - se_GameTime();
+    return true;
+}
+
+// A Retrocycles server holds a player who joins a respawn game mid-way until their client says
+// its game timer is in sync (client_ready, 313; the server line's gGame.cpp), then
+// RESPAWN_JOIN_READY seconds, so the first cycle never rides while the screen still reads
+// "Syncing with server...". The server sends that setting to browser clients alone, so having
+// it (>= 0) is also its word that it listens; -1 everywhere else, and nothing is said.
+static REAL sg_respawnJoinReady = -1;
+static nSettingItem< REAL > sg_respawnJoinReadyConf( "RESPAWN_JOIN_READY", sg_respawnJoinReady );
+// the server acts on the message; a client never gets one
+static void sg_ClientReadyHandler( nMessage & )
+{
+}
+static nDescriptor sg_clientReady( 313, sg_ClientReadyHandler, "client_ready" );
+// when this connection said it (tSysTimeFloat), -1 before
+static double sg_readySaidAt = -1;
+
+void sg_ReadyFrame()
+{
+    if ( sn_GetNetState() != nCLIENT )
+    {
+        sg_readySaidAt = -1;
+        return;
+    }
+    if ( sg_readySaidAt >= 0 || sg_respawnJoinReady < 0 || !se_mainGameTimer || !se_mainGameTimer->IsSynced() )
+        return;
+    nMessage * m = new nMessage( sg_clientReady );
+    m->Send( 0 );
+    sg_readySaidAt = tSysTimeFloat();
+}
+
+bool sg_JoinIn( ePlayerNetID const * player, REAL & seconds )
+{
+    if ( sg_readySaidAt < 0 || sg_respawnJoinReady < 0 || sg_respawnTime < 0 || sn_GetNetState() != nCLIENT )
+        return false;
+    if ( !player || !player->CanRespawn() || player->Object() )
+        return false;
+    if ( !sg_currentGame || sg_currentGame->GetState() != GS_PLAY )
+        return false;
+    seconds = sg_readySaidAt + sg_respawnJoinReady - tSysTimeFloat();
+    return true;
 }
 
 // uncomment to activate respawning
@@ -3850,6 +4013,9 @@ void gGame::Analysis(REAL time){
         }
 
         lastTeams=humanTeamsClamp; // update last team count
+
+        // a private room's rematch: the same restart, asked for by the platform layer
+        if ( gPlatformEvents::TakeMatchRestart() ) { StartNewMatch(); if ( time < -100 ) StartNewMatchNow(); else { winner=-1; wintimer=time; } }
     }
 
     // who is alive?
@@ -4061,6 +4227,7 @@ void gGame::Analysis(REAL time){
                         sn_ConsoleOut(message);
                         wintimer=time;
                         absolute_winner=1;
+                        gPlatformEvents::MatchDecided();
 
                         if ( se_mainGameTimer )
                             se_mainGameTimer->speed = 1;
@@ -4105,6 +4272,7 @@ void gGame::Analysis(REAL time){
                 )
            )
         {
+            gPlatformEvents::RoundEnded( rounds );
             rounds++;
             SetState(GS_PLAY,GS_DELETE_OBJECTS);
         }
@@ -4133,6 +4301,7 @@ void gGame::StartNewMatchNow(){
 
     ePlayerNetID::ThrowOutDisconnected();
     ePlayerNetID::ResetScore();
+    gPlatformEvents::MatchStarted();
 }
 
 #ifdef DEBUG
@@ -4182,7 +4351,12 @@ static uActionGlobalFunc reloadtextures_action(&reloadtextures,&reloadtextures_f
 static uActionGlobal ingamemenu( "INGAME_MENU" );
 static bool ingamemenu_func(REAL x){
     if (x>0){
+#ifdef __EMSCRIPTEN__
+        // the page owns the menu (API.md, event "menuOpen")
+        gBrowserApiRequest( "menuOpen" );
+#else
         st_ToDo(&ingame_menu);
+#endif
     }
 
     return true;
@@ -4193,6 +4367,26 @@ static uActionTooltip ingamemenuTooltip( ingamemenu, 1 );
 
 static eLadderLogWriter sg_gameTimeWriter("GAME_TIME", true);
 
+// Grid cleanup: an expired wall leaves the grid only when simplification reaches its edge. The stock
+// loop tries 10 edges a frame, which long respawn rounds outgrow. GRID_SIMPLIFY_SHARE tries that share
+// of the edges each frame (at least GRID_SIMPLIFY_MIN), even when the simplification credits have run
+// out, so a pass over the grid takes 1/share frames whatever its size.
+static int sg_gridSimplifyMin = 10;
+static tSettingItem< int > sg_gridSimplifyMinConf( "GRID_SIMPLIFY_MIN", sg_gridSimplifyMin );
+static REAL sg_gridSimplifyShare = .005;
+static tSettingItem< REAL > sg_gridSimplifyShareConf( "GRID_SIMPLIFY_SHARE", sg_gridSimplifyShare );
+
+static int sg_GridSimplifyShareCount( eGrid const * grid )
+{
+    return static_cast< int >( grid->NumEdges() * sg_gridSimplifyShare );
+}
+
+static int sg_GridSimplifyCount( eGrid const * grid )
+{
+    int count = sg_GridSimplifyShareCount( grid );
+    return count > sg_gridSimplifyMin ? count : sg_gridSimplifyMin;
+}
+
 bool gGame::GameLoop(bool input){
     nNetState netstate = sn_GetNetState();
 
@@ -4200,7 +4394,7 @@ bool gGame::GameLoop(bool input){
     grid->Check();
     if (simplify_grid)
 #endif
-        grid->SimplifyAll(10);
+        grid->SimplifyAll( sg_GridSimplifyCount( grid ), sg_GridSimplifyShareCount( grid ) );
 
 #ifdef DEBUG
     grid->Check();
@@ -4611,6 +4805,16 @@ void sg_EnterGameCleanup()
 {
     gHighscoresBase::SaveAll();
 
+#ifdef DEDICATED
+    if ( sn_GetNetState() == nSERVER && !uMenu::quickexit )
+    {
+        // sg_HostGame hosts again right away: keep the sockets and the browser transport,
+        // so a handshake in flight (a reloaded page rejoining the emptied room) survives;
+        // its login is answered once we are a server again
+        nSocketResetInhibitor inhibitor;
+        sn_SetNetState( nSTANDALONE );
+    }
+#endif
     sn_SetNetState( nSTANDALONE );
 
     // delete all AI players
@@ -4667,6 +4871,480 @@ void sg_EnterGame( nNetState enter_state )
         tJUST_CONTROLLED_PTR< eTeam > t = eTeam::teams(i);
     }
 }
+
+#ifdef __EMSCRIPTEN__
+// *******************************************************************************************
+// browser build: ConnectToServerCore and sg_EnterGame as a state polled once per animation
+// frame by gBrowser.cpp. Same steps in the same order, no nested loop, no delay.
+// *******************************************************************************************
+
+namespace
+{
+enum gBrowserPhase
+{
+    Browser_Idle,
+    Browser_Login,      // sn_ConnectPoll
+    Browser_Sync1,      // sn_Sync(40)
+    Browser_Sync2,      // sn_Sync(40,true)
+    Browser_WaitGame,   // the gGame object has not arrived yet
+    Browser_Game        // sg_EnterGameCore's loop
+};
+
+struct gBrowserConnectState
+{
+    gBrowserPhase phase = Browser_Idle;
+    std::unique_ptr< gSettingsReverter > reverter;
+    bool textOut = false;
+    double gameStateTimeout = 0;
+    tString reason;
+};
+
+gBrowserConnectState sg_browser;
+
+// the head of sg_EnterGameCore
+void sg_BrowserEnterGameBegin()
+{
+    se_UserShowScores( false );
+    sg_RequestedDisconnection = false;
+    sr_con.SetHeight(7);
+    extroPlayer.End();
+    introPlayer.MakeGlobal();
+    introPlayer.Reset();
+    sg_SoundPause( true, false );
+    gHighscoresBase::LoadAll();
+    uMenu::SetIdle(gameloop_idle);
+    sr_con.autoDisplayAtSwap=true;
+}
+
+// the tail of sg_EnterGameCore and sg_EnterGame
+void sg_BrowserEnterGameEnd()
+{
+    sg_SoundPause( false, false );
+    extroPlayer.MakeGlobal();
+    extroPlayer.Reset();
+    sg_EnterGameCleanup();
+
+    for ( int i = eTeam::teams.Len()-1; i>=0; --i )
+    {
+        tJUST_CONTROLLED_PTR< eTeam > t = eTeam::teams(i);
+    }
+}
+
+// the tail of ConnectToServerCore; fills in the reason the connection ended
+void sg_BrowserConnectEnd()
+{
+    gBrowserConnectState & st = sg_browser;
+
+    sn_SetNetState(nSTANDALONE);
+    sg_currentGame = NULL;
+    nNetObject::ClearAll();
+    ePlayerNetID::ClearAll();
+
+    if ( st.reason.Len() <= 1 )
+    {
+        if ( sg_RequestedDisconnection )
+            st.reason = "requested";
+        else if ( uMenu::quickexit == uMenu::QuickExit_Total )
+            st.reason = "quit";
+        else
+        {
+            sg_StopQuickExit();
+            switch (sn_GetLastError())
+            {
+            case nOK:
+                st.reason = "connection aborted";
+                sg_NetworkError("$network_message_abortconn_title", "$network_message_abortconn_inter", 20);
+                break;
+            default:
+                st.reason = "connection lost";
+                sg_NetworkError("$network_message_lostconn_title", "$network_message_lostconn_inter", 20);
+                break;
+            }
+        }
+    }
+
+    if ( sn_DenyReason.Len() > 2 )
+        st.reason << " (" << sn_DenyReason << ")";
+    nServerInfoBase * redirect = sn_PeekRedirectTo();
+    if ( redirect )
+        st.reason << ", redirect to " << redirect->GetConnectionName() << ":" << redirect->GetPort() << " not followed";
+
+    sr_con.autoDisplayAtNewline=false;
+    sr_con.fullscreen=false;
+    // the connecting phases forced the console on; in the game (Browser_Game)
+    // sr_textOut already is the user's TEXT_OUT, keep whatever it is now
+    if ( st.phase != Browser_Game )
+        sr_textOut=st.textOut;
+    st.reverter.reset();
+    st.phase = Browser_Idle;
+}
+}
+
+void sg_BrowserConnectBegin( nServerInfoBase * server )
+{
+    tASSERT( server );
+    gBrowserConnectState & st = sg_browser;
+    st = gBrowserConnectState();
+
+    ePlayerNetID::ClearAll();
+    st.reverter.reset( new gSettingsReverter );
+    sn_bigBrotherString = renderer_identification;
+    nNetObject::ClearAll();
+    just_connected=true;
+    sg_browserSyncsPending = 0;
+    sg_browserFetchPending = false;
+    sg_browserFetchTried = false;
+    rViewport::Update(MAX_PLAYERS);
+    st.textOut=sr_textOut;
+
+    rSysDep::SwapGL();
+    rSysDep::ClearGL();
+    rSysDep::SwapGL();
+    rSysDep::ClearGL();
+
+    sr_con.autoDisplayAtNewline=true;
+    sr_con.fullscreen=true;
+    sr_textOut=true;
+
+    nNetObject::ClearAll();
+
+    tOutput o;
+    o.SetTemplateParameter(1, server->GetName());
+    o << "$network_connecting_to_server";
+    con << o;
+
+    if ( !server->GetAddress().IsSet() )
+    {
+        st.reason = "no address";
+        sg_NetworkError("$network_message_timeout_title", "$network_message_timeout_inter", 20);
+        sg_BrowserConnectEnd();
+        return;
+    }
+
+    sn_ConnectBegin( server->GetAddress(), Login_All, NULL );
+    st.phase = Browser_Login;
+}
+
+bool sg_BrowserConnectPoll( tString & reason )
+{
+    gBrowserConnectState & st = sg_browser;
+
+    switch ( st.phase )
+    {
+    case Browser_Idle:
+        reason = st.reason;
+        return true;
+
+    case Browser_Login:
+        {
+            nConnectError error = nOK;
+            if ( !sn_ConnectPoll( error ) )
+                return false;
+            switch (error)
+            {
+            case nOK:
+                sn_SyncBegin(40);
+                st.phase = Browser_Sync1;
+                return false;
+            case nABORT:
+                st.reason = "login aborted";
+                break;
+            case nTIMEOUT:
+                st.reason = "login timeout";
+                sg_NetworkError("$network_message_timeout_title", "$network_message_timeout_inter", 20);
+                break;
+            case nDENIED:
+                st.reason = "login denied";
+                sg_NetworkError("$network_message_denied_title", sn_DenyReason.Len() > 2 ? "$network_message_denied_inter2" : "$network_message_denied_inter", 20);
+                break;
+            }
+            sg_BrowserConnectEnd();
+            reason = st.reason;
+            return true;
+        }
+
+    case Browser_Sync1:
+        if ( !sn_SyncPoll() )
+            return false;
+        if ( sn_GetNetState() != nCLIENT )
+        {
+            st.reason = "login denied";
+            sg_BrowserConnectEnd();
+            reason = st.reason;
+            return true;
+        }
+        con << tOutput("$network_login_relabeling");
+        con << tOutput("$network_login_sync2");
+        sn_SyncBegin(40,true);
+        st.phase = Browser_Sync2;
+        return false;
+
+    case Browser_Sync2:
+        if ( !sn_SyncPoll() )
+            return false;
+        if ( sn_GetNetState() != nCLIENT )
+        {
+            st.reason = "login denied";
+            sg_BrowserConnectEnd();
+            reason = st.reason;
+            return true;
+        }
+        con << tOutput("$network_login_done");
+        nPingAverager::SetWeight(1);
+
+        st.gameStateTimeout = tSysTimeFloat()+30;
+        con << tOutput("$network_connecting_gamestate");
+        st.phase = Browser_WaitGame;
+        return false;
+
+    case Browser_WaitGame:
+        if (!sg_currentGame && tSysTimeFloat()<st.gameStateTimeout && (sn_GetNetState() != nSTANDALONE))
+        {
+            sg_Receive();
+            nNetObject::SyncAll();
+            tAdvanceFrame();
+            sn_SendPlanned();
+            st_DoToDo();
+            rSysDep::SwapGL();
+            rSysDep::ClearGL();
+            return false;
+        }
+        if (sg_currentGame)
+        {
+            sr_con.autoDisplayAtNewline=false;
+            sr_con.fullscreen=false;
+            // unlike the native client (TEXT_OUT is forced on in network games,
+            // the console being its only text display) the browser build honours
+            // the user's TEXT_OUT in the game: the page has its own log, and
+            // TEXT_OUT 0 hides the console lines over the game view (not the HUD)
+            sr_textOut=st.textOut;
+            con << tOutput("$network_syncing_gamestate");
+            sg_BrowserEnterGameBegin();
+            st.phase = Browser_Game;
+            return false;
+        }
+        st.reason = "no game state";
+        sg_NetworkError("$network_message_lateto_title", "$network_message_lateto_inter", 20);
+        sg_BrowserConnectEnd();
+        reason = st.reason;
+        return true;
+
+    case Browser_Game:
+        try
+        {
+            if ( bool(sg_currentGame) && sn_GetNetState()==nCLIENT )
+            {
+                bool goon = GameLoop();
+                st_DoToDo();
+                if ( goon )
+                    return false;
+            }
+            sg_BrowserEnterGameEnd();
+        }
+        catch (tException const & e)
+        {
+            sg_EnterGameCleanup();
+            st.reason = "exception ";
+            st.reason << e.GetName();
+            tConsole::Message( e.GetName(), e.GetDescription(), 120000 );
+        }
+        sg_BrowserConnectEnd();
+        reason = st.reason;
+        return true;
+    }
+
+    return true;
+}
+
+int sg_BrowserConnectPhase()
+{
+    return static_cast< int >( sg_browser.phase );
+}
+
+bool sg_BrowserFetching()
+{
+    return sg_browserFetchPending;
+}
+
+bool sg_BrowserTakeRoundEvent( bool & started )
+{
+    if ( sg_browserRoundEvents.empty() )
+        return false;
+    started = sg_browserRoundEvents.front();
+    sg_browserRoundEvents.pop_front();
+    return true;
+}
+
+void sg_BrowserClearRoundEvents()
+{
+    sg_browserRoundEvents.clear();
+}
+
+void sg_BrowserDisconnect()
+{
+    gBrowserConnectState & st = sg_browser;
+    if ( st.phase == Browser_Idle )
+        return;
+
+    sg_RequestedDisconnection = true;
+    if ( st.phase == Browser_Game )
+    {
+        // ret_to_MainMenu without the menus: the next poll sees the net state
+        // change and runs the tail with reason "requested"
+        if ( sg_currentGame )
+            sg_currentGame->NoLongerGoOn();
+        sn_SetNetState( nSTANDALONE );
+        max_player_speed = 0.0;
+        uMenu::SetIdle( NULL );
+    }
+    else
+    {
+        // still logging in or syncing: end it right here (the login poll would
+        // otherwise retry with the old protocol when it sees the state change)
+        st.reason = "requested";
+        sn_SetNetState( nSTANDALONE );
+        sg_BrowserConnectEnd();
+    }
+}
+
+// *******************************************************************************************
+// browser build: sg_SinglePlayerGame as a state polled once per animation frame, the same
+// steps in the same order as own_game() + sg_EnterGame(), without the nested loop
+// *******************************************************************************************
+
+namespace
+{
+enum gBrowserLocalPhase
+{
+    Local_Idle,
+    Local_Game
+};
+
+gBrowserLocalPhase sg_browserLocalPhase = Local_Idle;
+tString sg_browserLocalReason;
+}
+
+bool sg_BrowserLocalBegin()
+{
+    if ( sg_browserLocalPhase != Local_Idle || sg_browser.phase != Browser_Idle )
+        return false;
+
+    sg_browserLocalReason = tString();
+    sg_RequestedDisconnection = false;
+
+    // sg_SinglePlayerGame() head
+    sn_SetNetState( nSTANDALONE );
+    update_settings();
+    ePlayerNetID::CompleteRebuild();
+
+    // the local game's own physics: the value a server last synced would
+    // otherwise stay (nSettingItems are not reset on disconnect)
+    {
+        tCurrentAccessLevel level( tAccessLevel_Owner, true );
+        std::stringstream s( "CYCLE_RUBBER 5\n" );
+        tConfItemBase::LoadLine( s );
+    }
+
+    // own_game() head
+    tNEW(gGame);
+    se_MakeGameTimer();
+    max_player_speed = 0.0;
+
+    // sg_EnterGameCore() head
+    sg_BrowserEnterGameBegin();
+
+    sg_browserLocalPhase = Local_Game;
+    return true;
+}
+
+bool sg_BrowserLocalPoll( tString & reason )
+{
+    if ( sg_browserLocalPhase == Local_Idle )
+    {
+        reason = sg_browserLocalReason;
+        return true;
+    }
+
+    try
+    {
+        if ( bool(sg_currentGame) && sn_GetNetState() == nSTANDALONE )
+        {
+            bool goon = GameLoop();
+            st_DoToDo();
+            if ( goon )
+                return false;
+        }
+        sg_BrowserEnterGameEnd();
+    }
+    catch (tException const & e)
+    {
+        sg_EnterGameCleanup();
+        sg_browserLocalReason = "exception ";
+        sg_browserLocalReason << e.GetName();
+        tConsole::Message( e.GetName(), e.GetDescription(), 120000 );
+    }
+
+    // own_game() tail
+    ePlayerNetID::LogScoreDifferences();
+    ePlayerNetID::UpdateSuspensions();
+    ePlayerNetID::UpdateShuffleSpamTesters();
+    sg_gameEndWriter << st_GetCurrentTime("%Y-%m-%d %H:%M:%S %Z");
+    sg_gameEndWriter.write();
+    sg_currentGame = NULL;
+    se_KillGameTimer();
+
+    sn_SetNetState( nSTANDALONE );
+    sr_con.autoDisplayAtNewline = false;
+    sr_con.fullscreen = false;
+
+    if ( sg_browserLocalReason.Len() <= 1 )
+        sg_browserLocalReason = "requested";
+
+    sg_browserLocalPhase = Local_Idle;
+    reason = sg_browserLocalReason;
+    return true;
+}
+
+bool sg_BrowserLocalRunning()
+{
+    return sg_browserLocalPhase != Local_Idle;
+}
+
+void sg_BrowserLocalStop()
+{
+    if ( sg_browserLocalPhase == Local_Idle )
+        return;
+
+    // ret_to_MainMenu without the menus: the next poll runs the tail
+    sg_RequestedDisconnection = true;
+    if ( sg_currentGame )
+        sg_currentGame->NoLongerGoOn();
+    max_player_speed = 0.0;
+    uMenu::SetIdle( NULL );
+}
+
+// *******************************************************************************************
+// browser build: the attract scene (gScene.cpp) runs without a gGame, on a bare grid built
+// from the default map. Same calls the game makes in GS_CREATE_GRID.
+// *******************************************************************************************
+
+void sg_BrowserSceneGridInit( eGrid * grid )
+{
+    tASSERT( grid );
+
+    gParser parser( &Arena, grid );
+    sg_ParseMap( &parser, tString( DEFAULT_MAP ) );
+    init_game_grid( grid, &parser );
+}
+
+void sg_BrowserSceneGridExit( eGrid * grid )
+{
+    if ( !grid )
+        return;
+
+    exit_game_objects( grid );
+}
+#endif // __EMSCRIPTEN__
 
 bool GridIsReady(int c){
     return bool(sg_currentGame) && sg_currentGame->GridIsReady(c);

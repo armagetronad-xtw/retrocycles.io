@@ -136,6 +136,10 @@ public:
 
     //! render all walls
     void RenderAll( eCamera const * camera, gCycle * cycle );
+
+    //! the additive floor passes of the modern arena look (FLOOR_REFLECT,
+    //! WALL_CONTACT_GLOW); does nothing while both are off
+    void RenderFloorEffects( eCamera const * camera, gCycle * cycle );
     bool Walls() const
     {
         return wallList_ || wallsWithDisplayList_;
@@ -220,6 +224,7 @@ private:
 
     // for network prediction
     SyncData									lastSyncMessage_;	// the last sync message the cycle received
+    SyncData									previousSyncMessage_;	// the one before it (what a missed turn leaves of the wall)
     tJUST_CONTROLLED_PTR<gCycleExtrapolator>	extrapolator_;		// the cycle copy used for extrapolation
     bool										resimulate_;		// flag indicating that a new extrapolation should be started
 
@@ -309,6 +314,11 @@ public:
 
     virtual bool DoTurn(int dir);
     void DropWall( bool buildNew=true );                                    //!< Drops the current wall and builds a new one
+#ifdef __EMSCRIPTEN__
+    //! the browser attract scene's replay (gScene.cpp) places its cycles itself:
+    //! runs the current wall up to the cycle's position, starting one if there is none
+    void BrowserSceneExtendWall();
+#endif
 
     // void Turbo(bool turbo);
 
@@ -352,6 +362,16 @@ private:
 protected:
     virtual 	bool 			DoIsDestinationUsed		( const gDestination *	dest		) const		;	//!< returns whether the given destination is in active use
 };
+
+#ifdef __EMSCRIPTEN__
+/* Browser attract scene (gScene.cpp): the colour the next cycle created
+   without a player is given. A cycle tints its body texture with its colour at
+   construction time, so the colour cannot be changed afterwards; player-less
+   cycles are white without this. Inert until set, cleared right after the
+   cycle is created. */
+void sg_BrowserSceneCycleColor( REAL r, REAL g, REAL b );
+void sg_BrowserSceneCycleColorClear();
+#endif
 
 #endif
 

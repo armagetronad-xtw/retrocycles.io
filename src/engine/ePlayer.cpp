@@ -42,10 +42,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fstream>
 #include <iostream>
 #include <deque>
+#include <vector>
 #include <algorithm>
 #include "rRender.h"
 #include "rSysdep.h"
 #include "nAuthentication.h"
+#include "ePlatform.h"
+#include "tUtf8.h"
 #include "tDirectories.h"
 #include "eVoter.h"
 #include "tReferenceHolder.h"
@@ -572,6 +575,19 @@ static void PasswordCallback( nKrawall::nPasswordRequest const & request,
     else
         storage->username.Clear();
 
+#ifdef __EMSCRIPTEN__
+    // no modal menu in the browser build: the page asks for the password
+    // ("authRequest" event) and answers through BrowserAuthAnswer() later
+    if ( se_browserAuthHook )
+    {
+        nAuthentication::DeferPasswordAnswer();
+        (*se_browserAuthHook)( username, message, request.method, request.failureOnLastTry );
+        return;
+    }
+    answer.aborted = true;
+    return;
+#endif
+
     // scramble input for recording
     uInputScrambler scrambler;
 
@@ -884,20 +900,43 @@ static void ResultCallback( nKrawall::nCheckResult const & result )
 
     tString authName = username + "@" + authority;
 
-    // seach for double login
+    // seach for double login; a platform token login replaces the session of another connection
+    std::vector< int > replaced;
     for ( int i = se_PlayerNetIDs.Len()-1; i>=0; --i )
     {
         ePlayerNetID* player2 = se_PlayerNetIDs(i);
         if ( player2->IsAuthenticated() && player2->GetRawAuthenticatedName() == authName )
         {
+            if ( success && ePlatform::LoginReplacesOld( player->Owner(), player2->Owner(), ePlatform::CurrentLoginMethod() ) )
+            {
+                replaced.push_back( player2->Owner() );
+                continue;
+            }
+
             sn_ConsoleOut( tOutput("$login_request_failed_dup"), player->Owner() );
             return;
         }
     }
 
+    for ( int owner : replaced )
+    {
+        // the server ends the old session; we are in the new connection's security context
+        tCurrentAccessLevel elevator( tAccessLevel_Owner, true );
+        for ( int i = se_PlayerNetIDs.Len()-1; i>=0; --i )
+        {
+            ePlayerNetID* player2 = se_PlayerNetIDs(i);
+            if ( player2->Owner() == owner && player2->GetRawAuthenticatedName() == authName )
+            {
+                player2->DeAuthenticate();
+            }
+        }
+        sn_KickUser( owner, tOutput("$login_replaced_elsewhere"), 0 );
+    }
+
     if (success)
     {
         player->Authenticate( authName, result.accessLevel );
+        ePlatform::PlayerAuthenticated( player, authName );
 
         // log blurb to ladderlog. This is not important for debug playback,
         // so we just don't record it. Once more is done with the blurb,
@@ -1115,6 +1154,7 @@ ePlayer::ePlayer(){
     nAuthentication::SetUserPasswordCallback(&PasswordCallback);
 #ifdef KRAWALL_SERVER
     nAuthentication::SetLoginResultCallback (&ResultCallback);
+    ePlatform::SetLoginResultCallback(&ResultCallback);
 #endif
 
     lastTooltip_ = -100;
@@ -1456,6 +1496,57 @@ void ePlayer::LogIn()
     }
 }
 
+#ifdef __EMSCRIPTEN__
+bool se_chatWritesUtf8 = false;
+se_BrowserChatHook * se_browserChatHook = NULL;
+se_BrowserChatOpenHook * se_browserChatOpenHook = NULL;
+se_BrowserAuthHook * se_browserAuthHook = NULL;
+se_BrowserScoresHook * se_browserScoresHook = NULL;
+
+// the tail of PasswordCallback, run when the page answers
+bool ePlayer::BrowserAuthAnswer( tString const & username, tString const & password, bool aborted )
+{
+    if ( !nAuthentication::PasswordRequestPending() )
+        return false;
+
+    nKrawall::nPasswordRequest const & request = nAuthentication::PendingPasswordRequest();
+    nKrawall::nScrambledPassword scrambled;
+    if ( !aborted )
+    {
+        request.ScramblePassword( nKrawall::nScrambleInfo( username ), password, scrambled );
+
+        // store it like the menu does (PASSWORD_STORAGE: -1 never, 0 for this
+        // run, 1 in user.cfg), so the next request is answered automatically
+        if ( se_PasswordStorageMode >= 0 )
+        {
+            tString methodCongested = request.method + '|' + request.prefix + '|' + request.suffix;
+            PasswordStorage * storage = NULL;
+            for ( int i = S_passwords.Len()-1; i>=0; i-- )
+            {
+                PasswordStorage & candidate = S_passwords(i);
+                if ( username == candidate.username && methodCongested == candidate.methodCongested )
+                    storage = &candidate;
+            }
+            if ( !storage )
+            {
+                for ( int i = S_passwords.Len()-1; i>=0; i-- )
+                    if ( S_passwords(i).username.Len() < 1 )
+                        storage = &S_passwords(i);
+            }
+            if ( !storage )
+                storage = &S_passwords[S_passwords.Len()];
+            storage->username = username;
+            storage->methodCongested = methodCongested;
+            storage->password = scrambled;
+            storage->save = ( se_PasswordStorageMode > 0 );
+        }
+    }
+
+    nAuthentication::AnswerPasswordRequest( username, scrambled, aborted );
+    return true;
+}
+#endif
+
 static void se_DisplayChatLocally( ePlayerNetID* p, const tString& say )
 {
 #ifdef DEBUG_X
@@ -1474,6 +1565,10 @@ static void se_DisplayChatLocally( ePlayerNetID* p, const tString& say )
         message << tColoredString::ColorString(1,1,.5);
         message << ": " << say << '\n';
 
+#ifdef __EMSCRIPTEN__
+        if ( se_browserChatHook )
+            (*se_browserChatHook)( p, message );
+#endif
         con << message;
     }
 }
@@ -1482,6 +1577,10 @@ static void se_DisplayChatLocallyClient( ePlayerNetID* p, const tString& message
 {
     if ( p && !p->IsSilenced() && se_enableChat )
     {
+#ifdef __EMSCRIPTEN__
+        if ( se_browserChatHook )
+            (*se_browserChatHook)( p, message );
+#endif
         con << message << "\n";
     }
 }
@@ -1494,6 +1593,10 @@ static nVersionFeature se_chatHandlerClient( 6 );
 // chat message from client to server
 void handle_chat( nMessage& );
 static nDescriptor chat_handler(200,handle_chat,"Chat");
+
+// what the server does with a chat line; the platform (ePlatform.h) delivers the lines it held through it
+static void se_HandleChatLine( ePlayerNetID * player, tColoredString say );
+bool se_platformChatHandlerRegistered = ( ePlatform::SetChatDeliverCallback( &se_HandleChatLine ), true );
 
 // checks whether text_to_search contains search_for_text
 bool Contains( const tString & search_for_text, const tString & text_to_search ) {
@@ -1683,16 +1786,78 @@ void handle_chat_client(nMessage &m)
     }
 }
 
+// ---- UTF-8 chat ---------------------------------------------------------------------------
+// Browser clients in official rooms write chat as UTF-8, so Korean, Chinese and Japanese get
+// through (tools/tUtf8.h). With CHAT_UTF8 1 the room carries it: browser clients get a line as
+// written, desktop clients a Latin-1 fold ("Cycler42: [message in Korean]"). With 0 it is
+// folded as it arrives, and the room stays Latin-1 for everyone.
+static bool se_chatUtf8 = true;
+static tSettingItem< bool > se_chatUtf8Conf( "CHAT_UTF8", se_chatUtf8 );
+
+// whether a client writes its chat as UTF-8 and can read it: a browser client (the page tells
+// the browser client to write UTF-8 only in official rooms; elsewhere it writes Latin-1, which
+// the same reading leaves as it is)
+static bool se_Utf8Client( int client )
+{
+    return client > 0 && sn_IsVirtualPeer( client );
+}
+
+// whether a client gets chat with UTF-8 in it as written
+static bool se_Utf8Reader( int client )
+{
+    return se_chatUtf8 && se_Utf8Client( client );
+}
+
+// a chat message for a client that reads Latin-1: a message with Korean, Japanese or Chinese
+// in it is named by its language, anything else is folded character by character
+static tString se_FoldChat( tString const & message )
+{
+    std::string const text( static_cast< char const * >( message ) );
+    switch ( tUtf8ScriptOf( text ) )
+    {
+    case tUtf8Script_Korean:
+        return tString( tOutput( "$chat_message_in_korean" ) );
+    case tUtf8Script_Japanese:
+        return tString( tOutput( "$chat_message_in_japanese" ) );
+    case tUtf8Script_Chinese:
+        return tString( tOutput( "$chat_message_in_chinese" ) );
+    default:
+        return tString( tUtf8ToLatin1( text ).c_str() );
+    }
+}
+
+// a whole formatted line (/me, an announcement) for a client that reads Latin-1: each
+// stretch of Korean, Japanese or Chinese is named by its language
+static tString se_FoldChatLine( tString const & line )
+{
+    return tString( tUtf8FoldRuns( static_cast< char const * >( line ),
+                                   static_cast< char const * >( tString( tOutput( "$chat_run_korean" ) ) ),
+                                   static_cast< char const * >( tString( tOutput( "$chat_run_japanese" ) ) ),
+                                   static_cast< char const * >( tString( tOutput( "$chat_run_chinese" ) ) ) ).c_str() );
+}
+
+// whether a message needs a second form for Latin-1 clients
+static bool se_NeedsFold( tString const & message )
+{
+    return se_FoldChat( message ) != message;
+}
+
+// the characters of a chat message (a UTF-8 sequence is one; Latin-1 bytes are one each)
+static int se_ChatLength( tString const & message )
+{
+    return static_cast< int >( tUtf8Length( static_cast< char const * >( message ) ) );
+}
+
 // appends chat message to something
 template< class TARGET >
 void se_AppendChat( TARGET & out, tString const & message )
 {
-    if ( message.Len() <= se_SpamMaxLen*2 || se_SpamMaxLen == 0 )
+    // the limit counts characters, so a UTF-8 message is cut where a character ends
+    if ( se_ChatLength( message ) < se_SpamMaxLen*2 || se_SpamMaxLen == 0 )
         out << message;
     else
     {
-        tString cut( message );
-        cut.SetLen( se_SpamMaxLen*2 );
+        tString cut( tUtf8Cut( static_cast< char const * >( message ), se_SpamMaxLen*2 - 1 ).c_str() );
         out << cut;
     }
 }
@@ -1821,8 +1986,13 @@ static nMessage* se_OldChatMessage( ePlayerNetID const * player, tString const &
 // sends the full chat line to receiver, marked as originating from <sender> so
 // it can be silenced.
 // ( the client will see <fullLine> resp. <sender name> : <forOldClients> if it is pre-0.2.8 and at least 0.2.6 )
-void se_SendChatLine( ePlayerNetID* sender, const tString& fullLine, const tString& forOldClients, int receiver )
+void se_SendChatLine( ePlayerNetID* sender, const tString& fullLineAsWritten, const tString& forOldClientsAsWritten, int receiver )
 {
+    // a client that reads Latin-1 gets the line folded
+    bool const fold = !se_Utf8Reader( receiver );
+    tString const fullLine = fold ? se_FoldChatLine( fullLineAsWritten ) : fullLineAsWritten;
+    tString const forOldClients = fold ? se_FoldChatLine( forOldClientsAsWritten ) : forOldClientsAsWritten;
+
     // create chat messages
 
     // send them to the users, depending on what they understand
@@ -1851,6 +2021,16 @@ void se_SendChatLine( ePlayerNetID* sender, const tString& fullLine, const tStri
 // ( the client will see <fullLine> resp. <sender name> : <forOldClients> if it is pre-0.2.8 and at least 0.2.6 )
 void se_BroadcastChatLine( ePlayerNetID* sender, const tString& line, const tString& forOldClients )
 {
+    // a line with UTF-8 in it goes as written to the clients that read it and folded to the
+    // others
+    if ( se_NeedsFold( line ) || se_NeedsFold( forOldClients ) )
+    {
+        for ( int user = MAXCLIENTS; user > 0; --user )
+            if ( sn_Connections[ user ].socket )
+                se_SendChatLine( sender, line, forOldClients, user );
+        return;
+    }
+
     // create chat messages
     tJUST_CONTROLLED_PTR< nMessage > mServerControlled = se_ServerControlledChatMessageConsole( sender, line );
     tJUST_CONTROLLED_PTR< nMessage > mNew = se_NewChatMessage( sender, forOldClients );
@@ -1875,35 +2055,47 @@ void se_BroadcastChatLine( ePlayerNetID* sender, const tString& line, const tStr
 // ( the clients will see <player>: <say>
 void se_BroadcastChat( ePlayerNetID* sender, const tString& say )
 {
+    // a message with UTF-8 in it has a second, folded form for the clients that read Latin-1;
+    // usually the two are the same and only one set is made
+    tString const folded = se_FoldChat( say );
+    bool const twoForms = folded != say;
+
     // create chat messages
     tJUST_CONTROLLED_PTR< nMessage > mServerControlled = se_ServerControlledChatMessage( sender, say );
     tJUST_CONTROLLED_PTR< nMessage > mNew = se_NewChatMessage( sender, say );
     tJUST_CONTROLLED_PTR< nMessage > mOld = se_OldChatMessage( sender, say );
+    tJUST_CONTROLLED_PTR< nMessage > fServerControlled = twoForms ? se_ServerControlledChatMessage( sender, folded ) : static_cast< nMessage * >( mServerControlled );
+    tJUST_CONTROLLED_PTR< nMessage > fNew = twoForms ? se_NewChatMessage( sender, folded ) : static_cast< nMessage * >( mNew );
+    tJUST_CONTROLLED_PTR< nMessage > fOld = twoForms ? se_OldChatMessage( sender, folded ) : static_cast< nMessage * >( mOld );
 
     // send them to the users, depending on what they understand
     for ( int user = MAXCLIENTS; user > 0; --user )
     {
         if ( sn_Connections[ user ].socket )
         {
+            bool const asWritten = !twoForms || se_Utf8Reader( user );
             if ( se_chatHandlerClient.Supported( user ) )
-                mServerControlled->Send( user );
+                ( asWritten ? mServerControlled : fServerControlled )->Send( user );
             else if ( se_chatRelay.Supported( user ) )
-                mNew->Send( user );
+                ( asWritten ? mNew : fNew )->Send( user );
             else
-                mOld->Send( user );
+                ( asWritten ? mOld : fOld )->Send( user );
         }
     }
 }
 
 
 // sends a private message from sender to receiver, and really sends it to eavesdropper (will usually be equal to receiver)
-void se_SendPrivateMessage( ePlayerNetID const * sender, ePlayerNetID const * receiver, ePlayerNetID const * eavesdropper, tString const & message )
+void se_SendPrivateMessage( ePlayerNetID const * sender, ePlayerNetID const * receiver, ePlayerNetID const * eavesdropper, tString const & messageAsWritten )
 {
     tASSERT( sender );
     tASSERT( receiver );
 
     // determine receiver client id
     int cid = eavesdropper->Owner();
+
+    // folded for a client that reads Latin-1
+    tString const message = se_Utf8Reader( cid ) ? messageAsWritten : se_FoldChat( messageAsWritten );
 
     // determine wheter the receiver knows about the server controlled chat message
     if ( se_chatHandlerClient.Supported( cid ) )
@@ -1934,7 +2126,7 @@ void se_SendPrivateMessage( ePlayerNetID const * sender, ePlayerNetID const * re
 }
 
 // Sends a /team message
-void se_SendTeamMessage( eTeam const * team, ePlayerNetID const * sender ,ePlayerNetID const * receiver, tString const & message )
+void se_SendTeamMessage( eTeam const * team, ePlayerNetID const * sender ,ePlayerNetID const * receiver, tString const & messageAsWritten )
 {
     tASSERT( receiver );
     tASSERT( sender );
@@ -1942,6 +2134,9 @@ void se_SendTeamMessage( eTeam const * team, ePlayerNetID const * sender ,ePlaye
     int clientID = receiver->Owner();
     if ( clientID == 0 )
         return;
+
+    // folded for a client that reads Latin-1
+    tString const message = se_Utf8Reader( clientID ) ? messageAsWritten : se_FoldChat( messageAsWritten );
 
     if ( se_chatHandlerClient.Supported( clientID ) ) {
         se_ServerControlledChatMessage( team, sender, message )->Send( clientID );
@@ -2843,7 +3038,7 @@ static void se_ChatShout( ePlayerNetID * p, tString const & say, eChatSpamTester
         return;
     }
 
-    if ( say.Len() <= se_SpamMaxLen+2 && !IsSilencedWithWarning(p) )
+    if ( se_ChatLength( say ) <= se_SpamMaxLen+1 && !IsSilencedWithWarning(p) )
     {
         se_BroadcastChat( p, say );
         se_DisplayChatLocally( p, say);
@@ -3547,7 +3742,16 @@ void handle_chat( nMessage &m )
     unsigned short id;
     m.Read(id);
     tColoredString say;
-    m >> say;
+    if ( sn_GetNetState() == nSERVER && se_Utf8Client( m.SenderID() ) )
+    {
+        // a browser client's line: well formed UTF-8 stays whole, and a room
+        // that keeps to Latin-1 folds it right here
+        m.ReadUtf8( say );
+        if ( !se_chatUtf8 )
+            say = tColoredString( tUtf8ToLatin1( static_cast< char const * >( say ) ).c_str() );
+    }
+    else
+        m >> say;
 
     tJUST_CONTROLLED_PTR< ePlayerNetID > p=dynamic_cast<ePlayerNetID *>(nNetObject::ObjectDangerous(id));
 
@@ -3568,6 +3772,27 @@ void handle_chat( nMessage &m )
                 nReadError();
                 return;
             }
+
+            // the platform may hold the line for a moderation verdict (engine/ePlatform.h)
+            if ( ePlatform::ChatSubmitted( p, say ) )
+                return;
+        }
+    }
+
+    se_HandleChatLine( p, say );
+}
+
+// the server's handling of a chat line (also for the lines the platform held)
+static void se_HandleChatLine( ePlayerNetID * player, tColoredString say )
+{
+    tJUST_CONTROLLED_PTR< ePlayerNetID > p = player;
+
+    if(sn_GetNetState()==nSERVER)
+    {
+        if (p)
+        {
+            // for the duration of this function, set the access level to the level of the user.
+            tCurrentAccessLevel levelOverride( p->GetAccessLevel(), true );
 
             eChatSpamTester spam( p, say );
 
@@ -3721,6 +3946,12 @@ static bool IsLegalPlayerName( tString const & name )
 void ePlayerNetID::Chat(const tString &s_orig)
 {
     tColoredString s( s_orig );
+#ifdef __EMSCRIPTEN__
+    // the browser client in an official room writes UTF-8: the filter keeps it whole
+    if ( se_chatWritesUtf8 && sn_GetNetState() == nCLIENT )
+        s = tColoredString( tUtf8NetFilter( static_cast< char const * >( s_orig ) ).c_str() );
+    else
+#endif
     s.NetFilter();
 
 #ifndef DEDICATED
@@ -3972,6 +4203,13 @@ static void do_chat(){
 
 static void chat( ePlayer * chatter, tString const & say )
 {
+#ifdef __EMSCRIPTEN__
+    if ( se_browserChatOpenHook )
+    {
+        (*se_browserChatOpenHook)( say );
+        return;
+    }
+#endif
     se_chatterPlanned = chatter;
     se_say = say;
     st_ToDo(&do_chat);
@@ -6421,6 +6659,12 @@ static bool show_scores=false;
 
 void ePlayerNetID::DisplayScores()
 {
+#ifdef __EMSCRIPTEN__
+    if ( se_browserScoresHook )
+    {
+        return; // the page draws the table
+    }
+#endif
     if( !show_scores || !se_mainGameTimer || se_alreadyDisplayedScores )
     {
         return;
@@ -7314,14 +7558,23 @@ void ePlayerNetID::GetScoreFromDisconnectedCopy()
 
 static bool ass=true;
 
+// every change of the table's visibility goes through here, so the page hears of each one
+static void se_SetShowScores(bool show){
+#ifdef __EMSCRIPTEN__
+    if ( show != show_scores && se_browserScoresHook )
+        (*se_browserScoresHook)( show );
+#endif
+    show_scores=show;
+}
+
 void se_AutoShowScores(){
     if (ass)
-        show_scores=true;
+        se_SetShowScores(true);
 }
 
 
 void se_UserShowScores(bool show){
-    show_scores=show;
+    se_SetShowScores(show);
 }
 
 void se_SetShowScoresAuto(bool a){
@@ -7351,7 +7604,7 @@ static uActionGlobal score("SCORE");
 
 
 static bool sf(REAL x){
-    if (x>0) show_scores = !show_scores;
+    if (x>0) se_SetShowScores(!show_scores);
     return true;
 }
 

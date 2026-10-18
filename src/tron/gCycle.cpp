@@ -47,13 +47,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "nKrawall.h"
 #include "gAIBase.h"
 #include "eDebugLine.h"
+#include "gPlatformEvents.h"
 #include "eLagCompensation.h"
 #include "gArena.h"
 
 #include "tMath.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <fstream>
+#include <iostream>
 #include <memory>
+#include <map>
+#include <string>
 
 #ifndef DEDICATED
 #define DONTDOIT
@@ -2058,26 +2063,31 @@ struct gCycleVisuals
 
     enum Slot{ SLOT_CUSTOM=0, SLOT_BODY=1, SLOT_WHEEL=2, SLOT_MAX=3 };
 
-    // loads a specific texture from a specific folder
-    static rSurface * LoadTextureSafe2( Slot slot, int mp )
+    // loads a texture file once (a missing file is remembered as NULL, too)
+    static rSurface * LoadSurface( tString const & file )
     {
-        static std::unique_ptr<rSurface> cache[SLOT_MAX][2];
-        std::unique_ptr<rSurface> & surface = cache[slot][mp];
+        static std::map< std::string, std::unique_ptr<rSurface> > cache;
+        std::unique_ptr<rSurface> & surface = cache[ std::string( file ) ];
         if ( surface.get() == NULL )
-        {
-            static char const * names[SLOT_MAX]={"bike.png","cycle_body.png", "cycle_wheel.png"};
-            char const * name = names[slot];
-
-            char const * folder = mp ? "moviepack" : "textures";
-            tString file = tString(folder) + "/" + name;
-
             surface.reset( tNEW( rSurface( file ) ) );
-        }
 
         if ( surface->GetSurface() )
             return surface.get();
         else
             return NULL;
+    }
+
+    static char const * SlotName( Slot slot )
+    {
+        static char const * names[SLOT_MAX]={"bike.png","cycle_body.png", "cycle_wheel.png"};
+        return names[slot];
+    }
+
+    // loads a specific texture from a specific folder
+    static rSurface * LoadTextureSafe2( Slot slot, int mp )
+    {
+        char const * folder = mp ? "moviepack" : "textures";
+        return LoadSurface( tString(folder) + "/" + SlotName( slot ) );
     }
 
     // load one texture from the prefered folder (or the other one as fallback)
@@ -2166,10 +2176,20 @@ struct gCycleVisuals
 #endif
 
 #ifndef DEDICATED
+// TRAIL_GLASS is on (below)
+static bool sg_TrailGlass();
+
 // renders a cycle even after it died
 class gCycleWallRenderer: public eReferencableGameObject
 {
 public:
+    // with TRAIL_GLASS the walls are drawn with the alpha blended objects,
+    // after every opaque one
+    virtual bool RendersAlpha() const
+    {
+        return sg_TrailGlass();
+    }
+
     gCycleWallRenderer( gCycle * cycle )
     : eReferencableGameObject( cycle->Grid(), cycle->Position(), cycle->Direction(), cycle->CurrentFace(), true )
     , cycle_( cycle )
@@ -2207,6 +2227,35 @@ private:
 
     tJUST_CONTROLLED_PTR< gCycle > cycle_;
 };
+#endif
+
+#ifdef __EMSCRIPTEN__
+// the browser attract scene's colour for the next player-less cycle (gCycle.h)
+static gRealColor sg_browserSceneColor;
+static bool sg_browserSceneColorSet = false;
+
+void sg_BrowserSceneCycleColor( REAL r, REAL g, REAL b )
+{
+    sg_browserSceneColor.r = r;
+    sg_browserSceneColor.g = g;
+    sg_browserSceneColor.b = b;
+    sg_browserSceneColorSet = true;
+}
+
+void sg_BrowserSceneCycleColorClear()
+{
+    sg_browserSceneColorSet = false;
+}
+
+void gCycle::BrowserSceneExtendWall()
+{
+    if ( !Alive() )
+        return;
+    if ( currentWall )
+        currentWall->Update( lastTime, pos );
+    else
+        DropWall();
+}
 #endif
 
 void gCycle::MyInitAfterCreation(){
@@ -2269,6 +2318,15 @@ void gCycle::MyInitAfterCreation(){
             trailColor_.r=1;
             trailColor_.g=1;
             trailColor_.b=1;
+
+#ifdef __EMSCRIPTEN__
+            // the browser attract scene colours its player-less cycles
+            if ( sg_browserSceneColorSet )
+            {
+                color_ = sg_browserSceneColor;
+                trailColor_ = sg_browserSceneColor;
+            }
+#endif
         }
         else
         {
@@ -3338,6 +3396,7 @@ void gCycle::KillAt( const eCoord& deathPos){
     // set position to death position so the explosion is at the right place (I dimly remember this caused problems in an earlier attempt)
     this->pos = deathPos;
 
+    gPlatformEvents::DeathCredited( this, hunter );
     Kill();
 }
 
@@ -3738,7 +3797,9 @@ bool gCycle::DoTurn(int d)
             skewDot+=4*d;
 
             if (sn_GetNetState() == nCLIENT && Owner() == ::sn_myNetID)
+            {
                 AddDestination();
+            }
 
             if (sn_GetNetState()!=nCLIENT)
             {
@@ -3815,6 +3876,7 @@ void gCycle::Kill(){
         RequestSync(true);
         if (Alive() && grid && GOID() >= 0 ){
             Die( lastTime );
+            gPlatformEvents::CycleDied( this );
             tNEW(gExplosion)(grid, pos,lastTime, color_, this );
             //	 eEdge::SeethroughHasChanged();
 
@@ -3882,6 +3944,103 @@ bool sg_axesIndicator=false;
 
 int sg_blinkFrequency=10;
 static tSettingItem< int > sg_blinkFrequencyConf( "CYCLE_BLINK_FREQUENCY", sg_blinkFrequency );
+
+// CYCLE_LIGHTING 0: the cycle models are lit per vertex, as always.
+// 1: per pixel (the browser client's rGLES2 layer; native GL keeps its per
+// vertex lighting) and the wheels and the body glow in the player colour
+// through the GL_EMISSION material (CYCLE_GLOW_WHEEL/CYCLE_GLOW_BODY: the
+// fraction of the player colour that is self lit, so the trim reads on the
+// unlit side too; per pixel it is screened over the light and never exceeds
+// the texel, native GL adds it before the texture as usual).
+static int sg_cycleLighting = 1;
+static tSettingItem< int > sg_cycleLightingConf( "CYCLE_LIGHTING", sg_cycleLighting );
+static REAL sg_cycleGlowWheel = 1;
+static tSettingItem< REAL > sg_cycleGlowWheelConf( "CYCLE_GLOW_WHEEL", sg_cycleGlowWheel );
+static REAL sg_cycleGlowBody = .25;
+static tSettingItem< REAL > sg_cycleGlowBodyConf( "CYCLE_GLOW_BODY", sg_cycleGlowBody );
+
+// BROWSER_WALL_GLOW <factor>, 0 off: the trail walls join the bloom mask
+// (src/render/rGLES2.cpp, sr_GLES2SetGlow) and contribute their own colour
+// times the factor, so the ribbons halo and that halo falls on the floor
+// beside them. Browser only; native GL has no bloom chain.
+static REAL sg_wallGlow = 0;
+static tSettingItem< REAL > sg_wallGlowConf( "BROWSER_WALL_GLOW", sg_wallGlow );
+
+// The wet floor of the modern arena look. Two extra passes over the same trail
+// geometry, both additive, neither writing depth, both drawn after the walls
+// themselves (gCycleWallsDisplayListManager::RenderAll):
+//   FLOOR_REFLECT <strength>, 0 off: the trail mirrored through the floor
+//     plane and stretched down by FLOOR_REFLECT_SPREAD, dimmed to <strength>.
+//     FLOOR_REFLECT_FADE (0) is how much of the strength is left at the far
+//     end of that stretch, so the smear fades out instead of ending in a line.
+//     The floor does not write depth (eDisplay.cpp draws it with the depth test
+//     off), so the mirrored copy is occluded by walls standing in front of it
+//     and by nothing else - which is what a reflection wants.
+//   WALL_CONTACT_GLOW <strength>, 0 off: the same geometry squashed to
+//     WALL_CONTACT_HEIGHT, so the bright crest of the wall texture lands in a
+//     tight band on the floor at the foot of the wall.
+// Both join the bloom mask with BROWSER_WALL_GLOW, which is what turns the
+// mirrored copy from a sharp second wall into a smear.
+// WALL_EMIT <factor>, 0 off: one more additive pass of the same trail quads,
+// in place - the ribbon's own light on top of the ribbon. Blending only adds,
+// so the background term of a translucent wall (WALL_STYLE 2) is untouched and
+// the floor still shows through; what changes is that the body gains
+// brightness and saturation and the crest clips towards white, so a trail
+// reads as a light source rather than a painted band.
+// WALL_EMIT_NEAR / _FAR, in grid units from the camera: the top-up ramps in
+// between them and is off nearer than _NEAR, because the same factor washes a
+// trail right next to the camera out to white. _FAR <= _NEAR turns the ramp
+// off and applies the factor everywhere.
+static REAL sg_wallEmit = 0;
+static tSettingItem< REAL > sg_wallEmitConf( "WALL_EMIT", sg_wallEmit );
+static REAL sg_wallEmitNear = 8;
+static tSettingItem< REAL > sg_wallEmitNearConf( "WALL_EMIT_NEAR", sg_wallEmitNear );
+static REAL sg_wallEmitFar = 26;
+static tSettingItem< REAL > sg_wallEmitFarConf( "WALL_EMIT_FAR", sg_wallEmitFar );
+
+REAL sg_floorReflect = 0; // the attract scene sets its own (gScene.cpp, SCENE_FLOOR_REFLECT)
+static tSettingItem< REAL > sg_floorReflectConf( "FLOOR_REFLECT", sg_floorReflect );
+REAL sg_floorReflectSpread = 2.5; // the attract scene sets its own (SCENE_FLOOR_REFLECT_SPREAD)
+static tSettingItem< REAL > sg_floorReflectSpreadConf( "FLOOR_REFLECT_SPREAD", sg_floorReflectSpread );
+static REAL sg_floorReflectFade = 0;
+static tSettingItem< REAL > sg_floorReflectFadeConf( "FLOOR_REFLECT_FADE", sg_floorReflectFade );
+static REAL sg_wallContactGlow = 0;
+static tSettingItem< REAL > sg_wallContactGlowConf( "WALL_CONTACT_GLOW", sg_wallContactGlow );
+static REAL sg_wallContactHeight = .06;
+static tSettingItem< REAL > sg_wallContactHeightConf( "WALL_CONTACT_HEIGHT", sg_wallContactHeight );
+
+#ifdef AA_GLES2
+// TRAIL_GLASS 1 (browser only, 0 off): the trail walls are drawn with the
+// alpha blended objects, after every cycle (gCycleWallRenderer), and without
+// the glow of BROWSER_WALL_GLOW and WALL_CONTACT_GLOW; 0 is the classic look,
+// where they glow. Every quality tier sets 1 (gBrowserQuality.cpp).
+static int sg_trailGlass = 0;
+static tSettingItem< int > sg_trailGlassConf( "TRAIL_GLASS", sg_trailGlass );
+
+static bool sg_TrailGlass()
+{
+    return sg_trailGlass > 0 && sr_alphaBlend;
+}
+#elif !defined( DEDICATED )
+static bool sg_TrailGlass()
+{
+    return false;
+}
+#endif
+
+#ifndef DEDICATED
+// sets the GL_EMISSION material to the given fraction of the cycle's colour
+// (clamped to the colour itself), or clears it
+static void sg_CycleGlow( gRealColor const & color, REAL fraction )
+{
+    if ( fraction < 0 )
+        fraction = 0;
+    if ( fraction > 1 )
+        fraction = 1;
+    GLfloat emission[4] = { color.r * fraction, color.g * fraction, color.b * fraction, 1 };
+    glMaterialfv( GL_FRONT_AND_BACK, GL_EMISSION, emission );
+}
+#endif
 
 #ifndef DEDICATED
 // put meriton's classes into a namespace so they can't possibly conflict with other code, especially the Colour class. --wrtl
@@ -4029,6 +4188,22 @@ static tSettingItem<REAL> mpws
 static rFileTexture dir_eWall(rTextureGroups::TEX_WALL,"textures/dir_wall.png",1,0,1);
 static rFileTexture dir_eWall_moviepack(rTextureGroups::TEX_WALL,"moviepack/dir_wall.png",1,0,1);
 
+/* WALL_STYLE 0: the stock dir_wall.png (flat grey with a white zigzag).
+   1: textures/dir_wall_tron.png - a bright crest along the top edge fading to
+   a dim foot, with faint ribs for a speed reference
+   (textures/tools/gen_arena.py). Same mean brightness, redistributed.
+   2: textures/dir_wall_glass.png - the same crest over a *translucent* body
+   (grey + alpha) with the zigzag as structure inside it: the floor shows
+   through the trail. Crest and foot stay opaque,
+   so the two edges a player reads a wall from are as hard as before; the body
+   between them is not. Costs depth sorting the game does not do, so two trails
+   crossing show through each other. */
+static int sg_wallStyle = 0;
+static tSettingItem<int> sg_wallStyleConf("WALL_STYLE", sg_wallStyle);
+
+static rFileTexture dir_eWall_tron(rTextureGroups::TEX_WALL,"textures/dir_wall_tron.png",1,0,1);
+static rFileTexture dir_eWall_glass(rTextureGroups::TEX_WALL,"textures/dir_wall_glass.png",1,0,1);
+
 static void dir_eWall_select()
 {
     if (sg_MoviePack()){
@@ -4036,6 +4211,14 @@ static void dir_eWall_select()
         IdentityMatrix();
         ScaleMatrix(1/mp_eWall_stretch,1,1);
         dir_eWall_moviepack.Select();
+    }
+    else if (sg_wallStyle > 1)
+    {
+        dir_eWall_glass.Select();
+    }
+    else if (sg_wallStyle > 0)
+    {
+        dir_eWall_tron.Select();
     }
     else
     {
@@ -4189,6 +4372,15 @@ void gCycleWallsDisplayListManager::RenderAll( eCamera const * camera, gCycle * 
         return;
     }
 
+#ifdef AA_GLES2
+    // the trails are the brightest player coloured thing on screen; with
+    // BROWSER_WALL_GLOW they go into the bloom mask for the frame's post pass
+    // (not with TRAIL_GLASS)
+    bool const glow = sg_wallGlow > 0 && !sg_TrailGlass();
+    if ( glow )
+        sr_GLES2SetGlow( static_cast< float >( sg_wallGlow ) );
+#endif
+
     // first, render all lines
     sr_DepthOffset(true);
     if ( rTextureGroups::TextureMode[rTextureGroups::TEX_WALL] != 0 )
@@ -4216,6 +4408,116 @@ void gCycleWallsDisplayListManager::RenderAll( eCamera const * camera, gCycle * 
     }
 
     RenderEnd();
+
+#ifdef AA_GLES2
+    if ( glow )
+        sr_GLES2SetGlow( 0 );
+#endif
+}
+
+// one extra, additive pass of the trail quads under the current model matrix
+static void sg_RenderWallQuads( gNetPlayerWall * list )
+{
+    gNetPlayerWall * run = list;
+    while( run )
+    {
+        gNetPlayerWall * next = run->Next();
+        run->RenderList( true, gNetPlayerWall::gWallRenderMode_Quads );
+        run = next;
+    }
+    RenderEnd();
+}
+
+// WALL_EMIT / FLOOR_REFLECT / WALL_CONTACT_GLOW, above
+void gCycleWallsDisplayListManager::RenderFloorEffects( eCamera const * camera, gCycle * cycle )
+{
+    // with TRAIL_GLASS the trails do not glow
+    bool const glowing = sg_wallGlow > 0 && !sg_TrailGlass();
+    (void)glowing; // only the browser's GL layer uses it
+    if ( sg_wallEmit <= 0 && sg_floorReflect <= 0 && sg_wallContactGlow <= 0 )
+    {
+        return;
+    }
+    if ( !wallList_ && !wallsWithDisplayList_ )
+    {
+        return;
+    }
+    if ( !sr_alphaBlend )
+    {
+        // both passes are additive; without blending they would be opaque copies
+        return;
+    }
+
+    // the ramp of WALL_EMIT measures from the eye
+    sg_wallRenderOrigin = camera ? camera->CameraGlancePos() : eCoord( 0, 0 );
+
+    dir_eWall_select();
+    glDisable( GL_CULL_FACE );
+    glDepthMask( GL_FALSE );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE );
+
+#ifdef AA_GLES2
+    if ( glowing )
+        sr_GLES2SetGlow( static_cast< float >( sg_wallGlow ) );
+#endif
+
+    sg_wallRenderExtraPass = true;
+
+    if ( sg_wallEmit > 0 )
+    {
+        // the ribbon's own light, added where it already is: the background
+        // term of the blend (what a translucent wall lets through) is not
+        // touched, so this brightens and saturates the trail without closing
+        // it up - and the crest clips towards white, which is what an emitter
+        // looks like
+        sg_wallRenderScale = sg_wallEmit;
+        sg_wallRenderTopScale = 1;
+        sg_wallRenderRampNear = sg_wallEmitNear;
+        sg_wallRenderRampFar = sg_wallEmitFar;
+        sg_RenderWallQuads( wallsWithDisplayList_ );
+        sg_RenderWallQuads( wallList_ );
+        sg_wallRenderRampFar = 0;
+    }
+
+    if ( sg_floorReflect > 0 )
+    {
+        sg_wallRenderScale = sg_floorReflect;
+        sg_wallRenderTopScale = sg_floorReflectFade;
+        ModelMatrix();
+        glPushMatrix();
+        glScalef( 1, 1, -sg_floorReflectSpread );
+        sg_RenderWallQuads( wallsWithDisplayList_ );
+        sg_RenderWallQuads( wallList_ );
+        ModelMatrix();
+        glPopMatrix();
+    }
+
+    // the contact line is the classic look's (TRAIL_GLASS off)
+    bool const contactGlow = sg_wallContactGlow > 0 && !sg_TrailGlass();
+    if ( contactGlow )
+    {
+        sg_wallRenderScale = sg_wallContactGlow;
+        sg_wallRenderTopScale = 1;
+        ModelMatrix();
+        glPushMatrix();
+        glScalef( 1, 1, sg_wallContactHeight );
+        sg_RenderWallQuads( wallsWithDisplayList_ );
+        sg_RenderWallQuads( wallList_ );
+        ModelMatrix();
+        glPopMatrix();
+    }
+
+    sg_wallRenderScale = 1;
+    sg_wallRenderTopScale = 1;
+    sg_wallRenderExtraPass = false;
+
+#ifdef AA_GLES2
+    if ( glowing )
+        sr_GLES2SetGlow( 0 );
+#endif
+
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+    glDepthMask( GL_TRUE );
 }
 
 void gCycleWallsDisplayListManager::RenderAll( eCamera const * camera, gCycle * cycle )
@@ -4225,6 +4527,9 @@ void gCycleWallsDisplayListManager::RenderAll( eCamera const * camera, gCycle * 
 
     // then, render the rest
     RenderAll( camera, cycle, wallList_ );
+
+    // and the wet floor passes on top of both
+    RenderFloorEffects( camera, cycle );
 }
 
 void gCycle::Render(const eCamera *cam){
@@ -4340,7 +4645,10 @@ void gCycle::Render(const eCamera *cam){
         glEnable(GL_LIGHT1);
         glEnable(GL_LIGHTING);
 
-
+        bool const glow = sg_cycleLighting > 0;
+#ifdef AA_GLES2
+        sr_GLES2PerPixelLighting( glow );
+#endif
 
         TexMatrix();
         IdentityMatrix();
@@ -4368,9 +4676,13 @@ void gCycle::Render(const eCamera *cam){
             if ( !blinking )
             {
                 bodyTex->Select();
+                if ( glow )
+                    sg_CycleGlow( color_, sg_cycleGlowBody );
                 body->Render();
 
                 wheelTex->Select();
+                if ( glow )
+                    sg_CycleGlow( color_, sg_cycleGlowWheel );
                 
                 glPushMatrix();
                 glTranslatef(0,0,.73);
@@ -4398,6 +4710,9 @@ void gCycle::Render(const eCamera *cam){
 
                 front->Render();
                 glPopMatrix();
+
+                if ( glow )
+                    sg_CycleGlow( color_, 0 );
             }
             
             glPopMatrix();
@@ -4587,6 +4902,12 @@ void gCycle::Render(const eCamera *cam){
         if(!blinking && sr_floorDetail>rFLOOR_GRID && rTextureGroups::TextureMode[rTextureGroups::TEX_FLOOR]>0 && sr_alphaBlend){
             glColor3f(0,0,0);
             cycle_shad.Select();
+            // a decal on the floor: no depth. The alpha test keeps all but its fully
+            // transparent texels, so it wrote depth over its whole rectangle, and with
+            // TRAIL_GLASS (the walls drawn after every opaque object) the floor reflection of
+            // the walls (FLOOR_REFLECT, under the floor) failed the depth test there: a
+            // hard-edged black slab under every cycle where the reflection's light was missing
+            glDepthMask(GL_FALSE);
             BeginQuads();
             glTexCoord2f(0,1);
             glVertex3f(-.6,.4,h);
@@ -4601,6 +4922,7 @@ void gCycle::Render(const eCamera *cam){
             glVertex3f(2.1,.4,h);
 
             RenderEnd();
+            glDepthMask(GL_TRUE);
         }
 
         glDisable(GL_CULL_FACE);
@@ -5401,6 +5723,7 @@ void gCycle::ReadSync( nMessage &m )
         //eDebugLine::Draw( lastSyncMessage_.pos, 1.5, lastSyncMessage_.pos, 5.0 );
         return;
     }
+    previousSyncMessage_ = lastSyncMessage_;
     lastSyncMessage_ = sync;
 
     // store last known good position: a bit before the last position confirmed by the server
@@ -5760,11 +6083,75 @@ void gCycle::SyncEnemy ( const eCoord& )
         }
         else
         {
-            // a turn sync was dropped for whatever reason. The last wall is not reliable.
-            // make it disappear immediately.
-            if (currentWall)
+            // a turn sync was dropped for whatever reason (a client the server fell behind
+            // with gets only the newest state). The last wall is only reliable up to the sync
+            // before this one, which the server placed on the old line: keep that much, and it
+            // goes the way of an ordinary turn's wall below, standing until the server's own
+            // walls replace it. Deleting all of it left the trail behind that cycle invisible
+            // until the server sent those walls. Without such a sync, it does disappear now.
+            SyncData const & confirmed = previousSyncMessage_;
+            SyncData const & sync = lastSyncMessage_;
+            bool const anchored = currentWall && confirmed.turns == this->turns &&
+                                  confirmed.time >= currentWall->tBeg &&
+                                  eCoord::F( confirmed.dir, currentWall->dir ) > .99f * currentWall->dir.NormSquared();
+
+            // with exactly one turn missed (the count went up by two) the path between is one
+            // corner: on the old line, across from the last turn the sync names (the leg
+            // between the corners stands at right angles to both lines, as on a grid of four
+            // directions). It is taken only when the server's distances agree with that path.
+            bool rebuilt = false;
+            if ( anchored && sync.turns == this->turns + 2 && sync.distance > confirmed.distance && sync.time > confirmed.time )
             {
-                currentWall->real_CopyIntoGrid(grid);
+                eCoord const & dir0 = currentWall->dir;
+                REAL const dirLength = sqrt( dir0.NormSquared() );
+                REAL const along = eCoord::F( sync.lastTurn - confirmed.pos, dir0 ) / dir0.NormSquared();
+                eCoord const corner = confirmed.pos + dir0 * along;
+                eCoord const leg = sync.lastTurn - corner;
+                REAL const legLength = sqrt( leg.NormSquared() );
+                REAL const lastTurnDist = sync.distance - sqrt( ( sync.pos - sync.lastTurn ).NormSquared() );
+                REAL const span = sync.distance - confirmed.distance;
+                REAL const path = along * dirLength + legLength;
+
+                if ( along >= 0 && legLength > .01f &&
+                     fabs( eCoord::F( leg, sync.dir ) ) < .01f * legLength * sqrt( sync.dir.NormSquared() ) &&
+                     fabs( lastTurnDist - confirmed.distance - path ) < .5f + .01f * span )
+                {
+                    // times from the distance, between the two syncs
+                    REAL const cornerDist = confirmed.distance + along * dirLength;
+                    REAL const cornerTime = confirmed.time + ( sync.time - confirmed.time ) * ( cornerDist - confirmed.distance ) / span;
+                    REAL const lastTurnTime = confirmed.time + ( sync.time - confirmed.time ) * ( lastTurnDist - confirmed.distance ) / span;
+
+                    // the old wall to the corner, dropped like an ordinary turn's
+                    currentWall->Update( cornerTime, corner );
+                    lastWall=currentWall;
+                    currentWall->CopyIntoGrid( grid );
+                    tControlledPTR< gNetPlayerWall > bounce( currentWall );
+                    currentWall=NULL;
+
+                    // the leg to the last turn, dropped below; the new wall starts at the last turn
+                    if ( cornerTime > spawnTime_ + sg_cycleWallTime )
+                    {
+                        currentWall=new gNetPlayerWall
+                                    (this,corner,Grid()->GetDirection( Grid()->DirectionWinding( leg ) ),cornerTime,cornerDist);
+                        currentWall->Update( lastTurnTime, sync.lastTurn );
+                    }
+                    crossPos = sync.lastTurn;
+                    crossDist = lastTurnDist;
+                    crossTime = lastTurnTime;
+                    rebuilt = true;
+                }
+            }
+
+            if ( !rebuilt )
+            {
+                if ( anchored && confirmed.time > currentWall->tBeg )
+                {
+                    currentWall->Update( confirmed.time, confirmed.pos );
+                }
+                else if (currentWall)
+                {
+                    currentWall->real_CopyIntoGrid(grid);
+                }
             }
         }
 

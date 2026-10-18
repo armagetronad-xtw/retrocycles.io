@@ -67,6 +67,18 @@ static tSettingItem<REAL> sg_zoneBottomConf( "ZONE_BOTTOM", sg_zoneBottom );
 static REAL sg_zoneHeight = 5.0f;
 static tSettingItem<REAL> sg_zoneHeightConf( "ZONE_HEIGHT", sg_zoneHeight );
 
+#ifdef __EMSCRIPTEN__
+REAL sg_BrowserZoneHeight()
+{
+    return sg_zoneHeight;
+}
+
+void sg_BrowserSetZoneHeight( REAL height )
+{
+    sg_zoneHeight = height;
+}
+#endif
+
 
 //! creates a win or death zone (according to configuration) at the specified position
 gZone * sg_CreateWinDeathZone( eGrid * grid, const eCoord & pos )

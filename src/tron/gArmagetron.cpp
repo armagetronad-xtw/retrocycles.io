@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rViewport.h"
 #include "rConsole.h"
 #include "gGame.h"
+#include "gBrowser.h"
 #include "gLogo.h"
 #include "eSound.h"
 #include "rScreen.h"
@@ -58,6 +59,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "nServerInfo.h"
 #include "nSocket.h"
+#include "gPlatformEvents.h"
 
 #ifndef DEDICATED
 #include "rRender.h"
@@ -462,7 +464,15 @@ static void sg_DelayedActivation()
     Activate( sg_active );
 }
 
+#if SDL_VERSION_ATLEAST(2,0,0)
+static int filter(void *, SDL_Event *tEvent){
+    // SDL 1.2 conventions from here on: key repeats and text input dropped,
+    // keysyms renumbered, window events turned into the old activation events
+    if ( !sr_TranslateEvent( *tEvent ) )
+        return 0;
+#else
 int filter(const SDL_Event *tEvent){
+#endif
     // recursion avoidance
     static bool recursion = false;
     if ( !recursion )
@@ -512,10 +522,44 @@ int filter(const SDL_Event *tEvent){
                 tEvent->type!=SDL_MOUSEBUTTONUP &&
                 ((tEvent->motion.x>=sr_screenWidth-10  || tEvent->motion.x<=10) ||
                  (tEvent->motion.y>=sr_screenHeight-10 || tEvent->motion.y<=10)))
+        {
+#if SDL_VERSION_ATLEAST(2,0,0)
+            if ( sr_window )
+                SDL_WarpMouseInWindow(sr_window, sr_screenWidth/2,sr_screenHeight/2);
+#else
             SDL_WarpMouse(sr_screenWidth/2,sr_screenHeight/2);
+#endif
+        }
 
         // fetch alt-tab
 
+#if SDL_VERSION_ATLEAST(2,0,0)
+        if (tEvent->type==SDL_WINDOWEVENT)
+        {
+#ifdef MACOSX
+            if (currentScreensetting.fullscreen ^ lastSuccess.fullscreen) return false;
+#endif
+            switch ( tEvent->window.event )
+            {
+            case SDL_WINDOWEVENT_FOCUS_GAINED:
+                sg_active = true;
+                st_ToDo(sg_DelayedActivation);
+                break;
+            case SDL_WINDOWEVENT_FOCUS_LOST:
+                sg_active = false;
+                st_ToDo(sg_DelayedActivation);
+                break;
+            case SDL_WINDOWEVENT_RESTORED:
+                // reload GL stuff if application gets reactivated
+                st_ToDo(rCallbackBeforeScreenModeChange::Exec);
+                st_ToDo(rCallbackAfterScreenModeChange::Exec);
+                break;
+            default:
+                break;
+            }
+            return false;
+        }
+#else
         if (tEvent->type==SDL_ACTIVEEVENT)
         {
             // Jonathans fullscreen bugfix.
@@ -539,6 +583,7 @@ int filter(const SDL_Event *tEvent){
             }
             return false;
         }
+#endif
 
         if (su_prefetchInput){
             return su_StoreSDLEvent(*tEvent);
@@ -560,7 +605,14 @@ void sg_SetIcon()
     //    SDL_Surface *tex=IMG_Load( tDirectories::Data().GetReadPath( "textures/icon.png" ) );
 
     if (tex.GetSurface())
+    {
+#if SDL_VERSION_ATLEAST(2,0,0)
+        if ( sr_window )
+            SDL_SetWindowIcon(sr_window, tex.GetSurface());
+#else
         SDL_WM_SetIcon(tex.GetSurface(),NULL);
+#endif
+    }
 #endif
 }
 
@@ -677,6 +729,10 @@ int main(int argc,char **argv){
         // tERR_MESSAGE( "Loading configuration." );
         tLocale::Load("languages.txt");
 
+#ifdef __EMSCRIPTEN__
+        // seed the persistent var/ directory on the first run (gBrowser.cpp)
+        gBrowserPersistRestore();
+#endif
         st_LoadConfig();
 
         // migrate user configuration from previous versions
@@ -801,6 +857,11 @@ int main(int argc,char **argv){
 #endif
 #endif
 
+#ifdef __EMSCRIPTEN__
+// sound is mixed through Web Audio by the SDL shim (web/wasm/sdl_shim.cpp)
+#undef NOSOUND
+#endif
+
 #ifndef DEDICATED
             if (
 #ifndef NOSOUND
@@ -815,17 +876,34 @@ int main(int argc,char **argv){
 
             sr_glRendererInit();
 
+#if SDL_VERSION_ATLEAST(2,0,0)
+            SDL_SetEventFilter(&filter, NULL);
+#else
             SDL_SetEventFilter(&filter);
+#endif
 
             //std::cout << "set filter\n";
 
             sg_SetIcon();
 
+#ifdef __EMSCRIPTEN__
+            // no modal message box; the page shows messages (gBrowserApi.cpp
+            // replaces this with its event emitting callback in gBrowserStart)
+            tConsole::RegisterMessageCallback(&gBrowserMessage);
+#else
             tConsole::RegisterMessageCallback(&uMenu::Message);
+#endif
             tConsole::RegisterIdleCallback(&uMenu::IdleInput);
 
 #ifndef NOSOUND
+#ifdef __EMSCRIPTEN__
+            // no cleanup object: emscripten_set_main_loop unwinds this scope
+            // (gBrowserStart below never returns) and the destructor would
+            // close the audio device the game keeps using
+            se_SoundInit();
+#else
             SDLSoundCleanup soundInitAndCleanup; // se_SoundInit() now, se_SoundExit() later
+#endif
 #ifndef DEBUG
 #if false // this was added a long time ago to work around problems. Now it occasionally causes startup freezes because
           // SDL does not like it when you init sound, then shut it down right away, some kind of race condition.
@@ -846,7 +924,10 @@ int main(int argc,char **argv){
 
                     //std::cout << "init sound\n";
 
+#ifndef __EMSCRIPTEN__
+                    // the browser build never enters the menus (gBrowserStart below)
                     welcome();
+#endif
 
                     //std::cout << "atexit\n";
 
@@ -861,6 +942,11 @@ int main(int argc,char **argv){
 
                     sn_bigBrotherString = renderer_identification + "VER=" + sn_programVersion + "\n\n";
 
+#ifdef __EMSCRIPTEN__
+                    // the animation frame loop, idle until the page calls
+                    // connect() (or right away with a #ws:// fragment); never returns
+                    gBrowserStart();
+#endif
                     MainMenu();
 
                     // remove all players
@@ -901,6 +987,7 @@ int main(int argc,char **argv){
             while (!uMenu::quickexit)
                 sg_HostGame();
 #endif
+            gPlatformEvents::Shutdown();
             nNetObject::ClearAll();
             nServerInfo::DeleteAll();
         }

@@ -726,6 +726,35 @@ private:
 
 tList< eVoteItem > eVoteItem::items_;				// list of vote items
 
+#ifdef __EMSCRIPTEN__
+// browser build: the vote menu is replaced by the page (gBrowserApi.cpp)
+void se_BrowserVisitVotes( se_BrowserVoteVisitor * visit, void * context )
+{
+    eVoter::VotingPossible(); // expires old items
+    tList< eVoteItem > const & items = eVoteItem::GetItems();
+    for ( int i = 0; i < items.Len(); ++i )
+    {
+        eVoteItem * item = items(i);
+        (*visit)( item->GetID(), item->GetDescription(), item->GetDetails(), context );
+    }
+}
+
+bool se_BrowserVote( int id, bool accept )
+{
+    tList< eVoteItem > const & items = eVoteItem::GetItems();
+    for ( int i = 0; i < items.Len(); ++i )
+    {
+        eVoteItem * item = items(i);
+        if ( item->GetID() == id )
+        {
+            item->Vote( accept ); // deletes the item
+            return true;
+        }
+    }
+    return false;
+}
+#endif
+
 void se_CancelAllVotes( bool announce )
 {
     if ( sn_GetNetState() == nCLIENT )

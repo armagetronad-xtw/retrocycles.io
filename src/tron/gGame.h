@@ -111,7 +111,55 @@ public:
 
 void update_settings( bool const * goon = 0 );
 
+class ePlayerNetID;
+//! on a server that respawns dead cycles (it tells its browser clients its RESPAWN_TIME):
+//! whether the player's dead cycle comes back this round, and in how many seconds (below 0
+//! while the new one is on its way); false when alive, spectating or between rounds
+bool sg_RespawnIn( ePlayerNetID const * player, REAL & seconds );
+//! once per frame in a browser client: says client_ready to a server that listens (it sent
+//! RESPAWN_JOIN_READY) the first time the game timer is in sync, once per connection
+void sg_ReadyFrame();
+//! in a respawn game whose server holds a joining player until their client is in sync: the
+//! seconds until the player's first cycle comes (below 0 once it is due); false with a cycle,
+//! before the client said it was in sync, spectating, or anywhere else
+bool sg_JoinIn( ePlayerNetID const * player, REAL & seconds );
+
 void ConnectToServer(nServerInfoBase *server);
+
+#ifdef __EMSCRIPTEN__
+/* The browser build cannot block: ConnectToServer (login, sync, game loop) as
+   a state machine. Begin once, then poll once per animation frame (after
+   tAdvanceFrame()) until it returns true; reason then says why it ended. */
+void sg_BrowserConnectBegin( nServerInfoBase * server );
+bool sg_BrowserConnectPoll( tString & reason );
+
+//! where the state machine is: 0 idle, 1 login, 2/3 the two syncs, 4 waiting
+//! for the game object, 5 in game (gBrowserApi.cpp maps it to the page's state)
+int sg_BrowserConnectPhase();
+//! true while the map of the round is being fetched (GS_CREATE_GRID waits)
+bool sg_BrowserFetching();
+//! the round rhythm (the page's `round` event, gBrowserApi.cpp): the game's entries into
+//! (started = true) and exits from GS_PLAY, oldest first, none while the game is being left
+bool sg_BrowserTakeRoundEvent( bool & started );
+void sg_BrowserClearRoundEvents();
+
+/* asks the running connection to end (what ret_to_MainMenu does natively);
+   the next sg_BrowserConnectPoll returns true with reason "requested" */
+void sg_BrowserDisconnect();
+
+/* The desktop client's local game (sg_SinglePlayerGame: standalone, AI
+   opponents from aiplayers.cfg) with the same treatment: begin once, poll once
+   per animation frame until it returns true. */
+bool sg_BrowserLocalBegin();
+bool sg_BrowserLocalPoll( tString & reason );
+bool sg_BrowserLocalRunning();
+void sg_BrowserLocalStop();
+
+/* The attract scene (gScene.cpp) runs without a gGame: these build and tear
+   down a bare grid with the default map (what GS_CREATE_GRID does). */
+void sg_BrowserSceneGridInit( eGrid * grid );
+void sg_BrowserSceneGridExit( eGrid * grid );
+#endif
 
 void sg_EnterGame( nNetState enter_state );
 void sg_HostGame();
@@ -187,6 +235,12 @@ extern gGameSettings* sg_currentSettings;
 
 // the 'start over' menu is defined in gArmagetron.cpp and needs to be injected
 void sg_RegisterStartupPlayerMenu(VOIDFUNC* pFunc);
+
+#ifndef DEDICATED
+//! ARENA_HAZE around an arena render: distance fog, off by default
+void sg_ArenaHazeBegin();
+void sg_ArenaHazeEnd();
+#endif
 
 #endif
 

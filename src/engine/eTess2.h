@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "eCoord.h"
 #include "tHeap.h"
 #include <iostream>
+#include <vector>
 #include "eWall.h"
 
 extern int se_debugExt;
@@ -340,6 +341,12 @@ public:
 
     // returns the array of stored replacements
     eReplacementStorage& GetReplacementStorage() const;
+
+    // the faces whose replacement arrays hold this face (se_LinkFaces, eGrid.cpp)
+    std::vector< eFace* > replacementParents_;
+
+    // replaced while held by replacement arrays: waits in se_detachQueue to leave them
+    bool detachQueued_ = false;
 protected:
     /*
     REAL   visHeight[MAX_VIEWERS]; // at which height can the

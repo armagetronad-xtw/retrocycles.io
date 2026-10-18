@@ -847,6 +847,34 @@ void gPlayerWall::RenderList(bool list)
 bool sg_simpleTrail = false;
 static tConfItem< bool > sgc_simpleTrail( "SIMPLE_TRAIL", sg_simpleTrail );
 
+#ifndef DEDICATED
+REAL sg_wallRenderScale = 1;
+REAL sg_wallRenderTopScale = 1;
+eCoord sg_wallRenderOrigin( 0, 0 );
+REAL sg_wallRenderRampNear = 0;
+REAL sg_wallRenderRampFar = 0;
+
+//! the distance ramp of gWall.h at one point; 1 while the ramp is off
+static inline REAL sg_WallRamp( const eCoord & p )
+{
+    if ( sg_wallRenderRampFar <= sg_wallRenderRampNear )
+    {
+        return 1;
+    }
+    REAL d = ( p - sg_wallRenderOrigin ).Norm();
+    if ( d <= sg_wallRenderRampNear )
+    {
+        return 0;
+    }
+    if ( d >= sg_wallRenderRampFar )
+    {
+        return 1;
+    }
+    return ( d - sg_wallRenderRampNear ) / ( sg_wallRenderRampFar - sg_wallRenderRampNear );
+}
+bool sg_wallRenderExtraPass = false;
+#endif
+
 void gNetPlayerWall::RenderList(bool list, gWallRenderMode renderMode ){
     if ( !cycle_ )
     {
@@ -906,6 +934,10 @@ void gNetPlayerWall::RenderList(bool list, gWallRenderMode renderMode ){
             g *= intensity;
             b *= intensity;
         }
+
+        r *= sg_wallRenderScale;
+        g *= sg_wallRenderScale;
+        b *= sg_wallRenderScale;
 
         REAL a=1;
 
@@ -990,7 +1022,8 @@ void gNetPlayerWall::RenderList(bool list, gWallRenderMode renderMode ){
                         continue;
                     }
 
-                    ClearDisplayList();
+                    if ( !sg_wallRenderExtraPass )
+                        ClearDisplayList();
 
                     REAL s=((time-gBEG_LEN_GIVEUP)-ta)/denom;
                     eCoord pm=p1+(p2-p1)*s;
@@ -1002,7 +1035,8 @@ void gNetPlayerWall::RenderList(bool list, gWallRenderMode renderMode ){
             }
             else{ // complicated
                 // can't squeeze that into a display list
-                ClearDisplayList();
+                if ( !sg_wallRenderExtraPass )
+                    ClearDisplayList();
 
                 if (ta+gBEG_LEN>=time){
                     RenderBegin(p1,p2,ta,te,
@@ -1076,8 +1110,10 @@ void gNetPlayerWall::RenderNormal(const eCoord &p1,const eCoord &p2,REAL ta,REAL
 
         if (dt>1)
         {
-            // remove from rendering lists
-            Remove();
+            // remove from rendering lists (never from an extra pass: the wall
+            // was already drawn and removed by the main one)
+            if ( !sg_wallRenderExtraPass )
+                Remove();
             return;
         }
 
@@ -1099,7 +1135,7 @@ void gNetPlayerWall::RenderNormal(const eCoord &p1,const eCoord &p2,REAL ta,REAL
 
 
     if (hfrac>0){
-        if ( ( mode & gWallRenderMode_Lines && sg_renderBulkLines  ) ){
+        if ( ( mode & gWallRenderMode_Lines && sg_renderBulkLines ) ){
 
             BeginLines();
 
@@ -1122,21 +1158,27 @@ void gNetPlayerWall::RenderNormal(const eCoord &p1,const eCoord &p2,REAL ta,REAL
 #endif
         if ( mode & gWallRenderMode_Quads && sg_renderBulkQuads )
         {
+            // the far edge of an extra pass fades out, and the pass as a whole
+            // can ramp in with the distance from the camera (gWall.h)
+            REAL const ts = sg_wallRenderTopScale;
+            REAL const k1 = sg_WallRamp( p1 );
+            REAL const k2 = sg_WallRamp( p2 );
+
             BeginQuads();
 
-            glColor4f(r,g,b,1);
+            glColor4f(r*k1,g*k1,b*k1,1);
             glTexCoord2f(ta,hfrac);
             glVertex3f(p1.x,p1.y,extrarise);
-            
-            glColor4f(r,g,b,1);
+
+            glColor4f(r*ts*k1,g*ts*k1,b*ts*k1,1);
             glTexCoord2f(ta,0);
             glVertex3f(p1.x,p1.y,extrarise + h*hfrac);
-            
-            glColor4f(r,g,b,1);
+
+            glColor4f(r*ts*k2,g*ts*k2,b*ts*k2,1);
             glTexCoord2f(te,0);
             glVertex3f(p2.x,p2.y,extrarise + h*hfrac);
-            
-            glColor4f(r,g,b,1);
+
+            glColor4f(r*k2,g*k2,b*k2,1);
             glTexCoord2f(te,hfrac);
             glVertex3f(p2.x,p2.y,extrarise);
         }
@@ -1247,14 +1289,17 @@ void gNetPlayerWall::RenderBegin(const eCoord &p1,const eCoord &pp2,REAL ta,REAL
             REAL x=(p1.x+frag*(p2.x-p1.x))*(1-xfunc(rat))+ppos.x*xfunc(rat);
             REAL y=(p1.y+frag*(p2.y-p1.y))*(1-xfunc(rat))+ppos.y*xfunc(rat);
 
+            REAL const k = sg_WallRamp( eCoord( x, y ) );
+
             // bottom
-            glColor4f(r+cfunc(rat),g+cfunc(rat),b+cfunc(rat),a*afunc(rat));
+            glColor4f((r+cfunc(rat))*k,(g+cfunc(rat))*k,(b+cfunc(rat))*k,a*afunc(rat));
             glTexCoord2f(ta+(te-ta)*frag,hfrac);
             glVertex3f(x,y,0);
 
-            // top
+            // top (faded out in an extra pass, gWall.h)
             //glTexCoord2f(ta+(te-ta)*frag,hfrac*(1-hfunc(rat)));
-            glColor4f(r+cfunc(rat),g+cfunc(rat),b+cfunc(rat),a*afunc(rat));
+            REAL const ts = sg_wallRenderTopScale * k;
+            glColor4f((r+cfunc(rat))*ts,(g+cfunc(rat))*ts,(b+cfunc(rat))*ts,a*afunc(rat));
             glTexCoord2f(ta+(te-ta)*frag,0);
             REAL H=h*hfrac*hfunc(rat);
             glVertex3f(x+H*cycle_->skew*sfunc(rat)*cycle_->dir.y,

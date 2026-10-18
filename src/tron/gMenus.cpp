@@ -26,6 +26,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "gMenus.h"
+#ifdef __EMSCRIPTEN__
+#include "gBrowser.h"
+#endif
 #include "ePlayer.h"
 #include "rScreen.h"
 #include "nConfig.h"
@@ -220,13 +223,19 @@ public:
              res)
     {
 #ifndef DEDICATED
+        int i;
+#if SDL_VERSION_ATLEAST(2,0,0)
+        // fetch valid screen modes from SDL
+        int const modeCount = SDL_GetNumDisplayModes(0);
+        if( modeCount <= 0 )
+#else
         // fetch valid screen modes from SDL
         SDL_Rect **modes;
         modes=SDL_ListModes(NULL, SDL_FULLSCREEN|SDL_OPENGL);
 
         // Check is there are any modes available
-        int i;
         if(modes == 0 || modes == (SDL_Rect **)-1)
+#endif
         {
             // add all fixed resolutions
             for ( i = ArmageTron_Custom; i>=0; --i )
@@ -247,10 +256,19 @@ public:
             rScreenSize maxSize(0,0);
 
             // fill in available modes (avoid duplicates)
+#if SDL_VERSION_ATLEAST(2,0,0)
+            for(i=0;i<modeCount;++i)
+            {
+                SDL_DisplayMode mode;
+                if( SDL_GetDisplayMode(0, i, &mode) != 0 )
+                    continue;
+                rScreenSize size(mode.w, mode.h);
+#else
             for(i=0;modes[i];++i)
             {
                 // add mode (if it's new)
                 rScreenSize size(modes[i]->w, modes[i]->h);
+#endif
                 NewChoice( size );
                 if ( maxSize.width < size.width )
                     maxSize.width = size.width;
@@ -1213,7 +1231,12 @@ static bool screenshot_func(REAL x){
 
 static bool con_func(REAL x){
     if (x>0){
+#ifdef __EMSCRIPTEN__
+        // the page owns the console input (API.md, event "consoleOpen")
+        gBrowserApiRequest( "consoleOpen" );
+#else
         sg_ConsoleInput();
+#endif
     }
 
     return true;
@@ -1221,6 +1244,12 @@ static bool con_func(REAL x){
 
 static bool toggle_fullscreen_func( REAL x )
 {
+#ifdef __EMSCRIPTEN__
+    // the page owns fullscreen (the browser's Fullscreen API; API.md, event "fullscreen")
+    if ( x > 0 )
+        gBrowserApiRequest( "fullscreen" );
+    return true;
+#endif
 #ifndef DEDICATED
 #ifdef DEBUG
     // don't toggle fullscreen while playing back in debug mode, that's annoying

@@ -76,7 +76,22 @@ static tConfigMigration migrate([](tString const &savedInVersion){
 });
 }
 
+// HUD_GAUGE_KEEP_ASPECT: the gauges keep the proportions they have on a 4:3 screen on a screen
+// of any shape, their horizontal measures (needle, labels, letters) following the screen's
+// height; off (the default), they stretch with the screen's width as before. Lets a narrow or
+// upright screen (a phone, a small window) show round gauges and unsqueezed letters.
 #ifndef DEDICATED
+
+static bool sg_gaugeKeepAspect = false;
+static tSettingItem< bool > sg_gaugeKeepAspectConf( "HUD_GAUGE_KEEP_ASPECT", sg_gaugeKeepAspect );
+
+// what the gauges' horizontal measures are multiplied with
+static REAL sg_GaugeWidthFactor()
+{
+    if ( !sg_gaugeKeepAspect || sr_screenWidth <= 0 || sr_screenHeight <= 0 )
+        return 1;
+    return ( 4.0f / 3.0f ) * sr_screenHeight / sr_screenWidth;
+}
 
 void GLmeter_subby(float value,float max, float locx, float locy, float size, const char * t,bool displayvalue = true, bool reverse = false, REAL r=.5, REAL g=.5, REAL b=1)
 {
@@ -112,28 +127,31 @@ void GLmeter_subby(float value,float max, float locx, float locy, float size, co
 
     	RenderEnd();*/
 
+    // the horizontal size (the same as size unless HUD_GAUGE_KEEP_ASPECT)
+    REAL const wsize = size * sg_GaugeWidthFactor();
+
     glDisable(GL_TEXTURE_2D);
     Color(r,g, b);
     BeginLines();
-    Vertex(-.1*x*size+locx,.1*y*size+locy,0);
-    Vertex(-x*size+locx,y*size+locy,0);
+    Vertex(-.1*x*wsize+locx,.1*y*size+locy,0);
+    Vertex(-x*wsize+locx,y*size+locy,0);
     RenderEnd();
 
 
-    rTextField min_t(-size-(0.1*size)+locx,locy,.12*size,.24*size);
-    rTextField max_t(+size+(0.1*size)+locx,locy,.12*size,.24*size);
+    rTextField min_t(-wsize-(0.1*wsize)+locx,locy,.12*wsize,.24*size);
+    rTextField max_t(+wsize+(0.1*wsize)+locx,locy,.12*wsize,.24*size);
     min_t << "0xcccccc" << (reverse?max:0);
     max_t << "0xcccccc" << (reverse?0:max);
 
     if(displayvalue){
-        rTextField speed_t(-x*1.45*size+locx,y*1.35*size+locy,.12*size,.24*size);
+        rTextField speed_t(-x*1.45*wsize+locx,y*1.35*size+locy,.12*wsize,.24*size);
         snprintf( string, sizeof( string ), "%.1f", value );
         speed_t << "0xccffff" << (string);
     }
     int length = title.Len();
     if ( length > 0 )
     {
-        rTextField titletext(locx-((.15*size*(length-1.5))/2.0),locy,.12*size,.24*size); //centre  -1.0 for null char and -.5 for half a char width = -1.5
+        rTextField titletext(locx-((.15*wsize*(length-1.5))/2.0),locy,.12*wsize,.24*size); //centre  -1.0 for null char and -.5 for half a char width = -1.5
         titletext << "0xff3333" << title;
     }
 }
@@ -145,7 +163,7 @@ class gGLMeter
 {
 public:
     gGLMeter()
-    : oldTime_( -100 ), oldRel_( -100 )
+    : oldTime_( -100 ), oldRel_( -100 ), oldWidth_( -1 )
     {
     }
 
@@ -155,8 +173,9 @@ public:
         REAL time = se_GameTime();
         REAL change = rel - oldRel_;
 
-        // see if the gauge change is enough to warrant an update
-        if ( change * change * ( time - oldTime_ ) > sg_hudCacheThreshold*sg_hudCacheThreshold || time < oldTime_ )
+        // see if the gauge change is enough to warrant an update (or the screen's shape changed it)
+        REAL width = sg_GaugeWidthFactor();
+        if ( change * change * ( time - oldTime_ ) > sg_hudCacheThreshold*sg_hudCacheThreshold || time < oldTime_ || width != oldWidth_ )
         {
             list_.Clear();
         }
@@ -165,6 +184,7 @@ public:
         {
             oldRel_ = rel;
             oldTime_ = time;
+            oldWidth_ = width;
 
             rDisplayListFiller filler( list_ );
             GLmeter_subby(value, max,  locx, locy, size, t, displayvalue, reverse, r, g, b );
@@ -173,6 +193,7 @@ public:
 private:
     REAL oldTime_;      // last rendered game time
     REAL oldRel_;       // last rendered gauge position
+    REAL oldWidth_;     // last rendered width factor (HUD_GAUGE_KEEP_ASPECT and the screen's shape)
     rDisplayList list_; // caching display list
 };
 

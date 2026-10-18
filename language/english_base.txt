@@ -2116,6 +2116,20 @@ detail_floor_tex_help		An infinite plane is drawn, with the texture of the grid 
 detail_floor_2tex_text		Dual Texture Plane
 detail_floor_2tex_help		Just as in "Textured Plane", the floor is an infinite textured plane. But here, the two groups of lines are drawn in two separate rendering steps, resulting in a much sharper image.
 
+browser_quality_text		Graphics Quality:
+browser_quality_help		How much the graphics may cost the GPU. Auto adjusts the quality and the render resolution to keep the game smooth.
+browser_quality_auto_text	Auto
+browser_quality_auto_help	Measures the frame rate and picks the best quality this computer keeps smooth.
+browser_quality_low_text	Low
+browser_quality_low_help	No bloom or antialiasing, reduced resolution on high density screens. For older and integrated graphics.
+browser_quality_medium_text	Medium
+browser_quality_medium_help	Bloom and light antialiasing.
+browser_quality_high_text	High
+browser_quality_high_help	Adds a wider glow and full antialiasing at full resolution.
+browser_quality_ultra_text	Ultra
+browser_quality_ultra_help	Adds the widest bloom. For dedicated graphics cards.
+browser_quality_custom_text	Custom
+browser_quality_custom_help	Leaves every graphics setting as you set it.
 detail_alpha_text		Alpha Blending:
 detail_alpha_help		Alpha blending is used to display half-transparent objects such as explosions and the walls rising behind the cycles. It does not cost extra with most 3D-cards, but slows software rendering down quite a bit.
 
@@ -2462,6 +2476,14 @@ player_allowed_teamchange \10x77ff77 has been allowed to change their team.\n
 player_disallowed_teamchange \10xff7777 cannot change teams anymore.\n
 vote_spam_protection	VOTE SPAM PROTECTION: you are disallowed from issuing votes for the next \1 seconds.\n
 chat_title_text			Say:
+# a chat message in a script the game's Latin-1 cannot show, as desktop clients get it;
+# the run forms replace a stretch of it inside a longer line (/me)
+chat_message_in_korean      [message in Korean]
+chat_message_in_japanese    [message in Japanese]
+chat_message_in_chinese     [message in Chinese]
+chat_run_korean             [Korean]
+chat_run_japanese           [Japanese]
+chat_run_chinese            [Chinese]
 player_entered_game		\1 0x7fff7fentered the game.\n
 player_entered_spectator \1 0x7fff7fentered as spectator.\n
 player_left_spectator    0xff7f7fSpectator \1 0xff7f7fleft.\n
@@ -2689,6 +2711,7 @@ network_kill_cheater		It assumed you are cheating. If that is untrue, it is a bu
 network_kill_error			An error occurred while processing messages from your client. This usually indicates a client or server bug.
 network_kill_servercomplete	Server list transfer complete.
 network_kill_timeout		You timed out.
+network_kill_transport_closed	The connection was closed.
 network_kill_logout			You logged out regularly.
 network_kill_incompatible	You are running a version incompatible with the server.
 network_kill_full			The server is full.
@@ -2958,6 +2981,7 @@ password_help			Password setting
 login_request_redundant		Already logged in.\n
 login_request_failed		Login failed. Try again!
 login_request_failed_dup	Two logins with the same account are not permitted.\n
+login_replaced_elsewhere	Your account logged in again from another place.
 login_not_supported         This server does not support authentication of the type you requested, sorry.\n
 login_request               Login with Authority \1
 login_request_local         Login with Local Account

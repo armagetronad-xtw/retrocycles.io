@@ -108,7 +108,9 @@ public:
     void SimplifyNum(int e);
 
     // try to get rid of count edges
-    void SimplifyAll(int count=1);
+    // tries up to count edges; at least guaranteed of them even when the credits (earned by new
+    // edges and by successes) have run out
+    void SimplifyAll(int count=1, int guaranteed=0);
 
     // consistency check
     void Check() const;
@@ -127,6 +129,11 @@ public:
 
     // displays the grid, eWalls and gameobjects
     void Render( eCamera* cam, int viewer, REAL& zNear );
+
+    //! scenery drawn around the arena, right after the rim walls (in the
+    //! floor mirror pass too, when that draws walls); NULL: none
+    typedef void SceneryRenderer( eGrid * grid, eCamera const * camera );
+    static void SetSceneryRenderer( SceneryRenderer * renderer );
 
     // get the currently active grid (OBSOLETE)
     static eGrid *CurrentGrid();
@@ -148,6 +155,7 @@ public:
 
 
     const tList<eCamera>&     Cameras()     const{return cameras;}
+    int NumEdges() const { return edges.Len(); }  // grid cleanup budget (gGame.cpp)
     const tList<eGameObject>& GameObjects() const{return gameObjects;}
     const tList<eGameObject>& GameObjectsInteresting() const{return gameObjectsInteresting;}
     const tList<eGameObject>& GameObjectsInactive() const{return gameObjectsInactive;}

@@ -322,4 +322,10 @@ tFunction & tFunction::SetSlope( REAL const & slope )
     return *this;
 }
 
+#ifdef __EMSCRIPTEN__
+//! the browser attract scene (gScene.cpp) draws its zones flat: ZONE_HEIGHT, read and set
+REAL sg_BrowserZoneHeight();
+void sg_BrowserSetZoneHeight( REAL height );
+#endif
+
 #endif

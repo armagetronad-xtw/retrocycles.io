@@ -77,6 +77,29 @@ class tOutput;
 class eTeam;
 class eVoter;
 
+#ifdef __EMSCRIPTEN__
+// browser build: set by gBrowserApi.cpp when the page says the room carries UTF-8 chat (an
+// official room); the chat line is then sent as UTF-8 instead of Latin-1
+extern bool se_chatWritesUtf8;
+// browser build: set by gBrowserApi.cpp, called for every chat line shown
+// locally (p may be NULL; line is the colored line as the console shows it)
+typedef void se_BrowserChatHook( ePlayerNetID * p, tString const & line );
+extern se_BrowserChatHook * se_browserChatHook;
+// and when the chat key (or an instant chat with a trailing backslash) asks
+// for the chat line: the page opens its input instead of the uMenu one
+typedef void se_BrowserChatOpenHook( tString const & prefill );
+extern se_BrowserChatOpenHook * se_browserChatOpenHook;
+// and when the server asks for a password (nAuthentication's request, which
+// the native client answers through a menu): the page shows its login form
+// and completes the request through ePlayer::BrowserAuthAnswer()
+typedef void se_BrowserAuthHook( tString const & username, tString const & message, tString const & method, bool failed );
+extern se_BrowserAuthHook * se_browserAuthHook;
+// and when the score table is shown or hidden (the SCORE key, a round's end, a new round): set,
+// the page draws its own table and the canvas one is never drawn
+typedef void se_BrowserScoresHook( bool show );
+extern se_BrowserScoresHook * se_browserScoresHook;
+#endif
+
 class ePlayer: public uPlayerPrototype{
     friend class eMenuItemChat;
     static uActionPlayer s_chat;
@@ -140,6 +163,10 @@ public:
     static rViewport * PlayerViewport(int p);
 
     static void LogIn();          //!< sends authentication login messages for all local players
+#ifdef __EMSCRIPTEN__
+    //! answers the pending password request (se_browserAuthHook); false when none is pending
+    static bool BrowserAuthAnswer( tString const & username, tString const & password, bool aborted );
+#endif
     static void SendAuthNames();  //!< sends authentication names and authentication wishes for all local players
 
     static void Init();
