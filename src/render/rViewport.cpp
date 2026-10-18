@@ -62,6 +62,17 @@ REAL rViewport::UpDownFOV(REAL fov){
     return 360*atan(tan(M_PI*fov/360)/ratio)/M_PI;
 }
 
+#ifdef __EMSCRIPTEN__
+/* The browser client's lens shift (for the play page's Settings sheet): the 3D view's
+   centre moved sideways by this much of the half width (normalized device coordinates, -1
+   left .. 1 right), so the cycle the camera puts in the middle shows in the part of the
+   screen a page panel leaves free. Only the 3D projection moves: the HUD and the console set
+   their own. The camera, its numbers and the field of view are unchanged. Not saved; the
+   page sets it while a sheet is open and puts it back to 0. */
+static REAL sr_lensShift = 0;
+static tSettingItem< REAL > sr_lensShiftConf( "BROWSER_LENS_SHIFT", sr_lensShift );
+#endif
+
 void rViewport::Perspective(REAL fov,REAL nnear,REAL ffar){
 #ifndef DEDICATED
     if (!sr_glOut)
@@ -85,6 +96,12 @@ void rViewport::Perspective(REAL fov,REAL nnear,REAL ffar){
     // transfer that directly to the vertical fov.
     REAL ymul = xmul/aspectratio;
     ProjMatrix();
+#ifdef __EMSCRIPTEN__
+    // the lens shift: a translation in clip space before the frustum moves every projected
+    // point by the same share of the width (x' = x + shift * w)
+    if ( sr_lensShift != 0 )
+        glTranslatef( static_cast< GLfloat >( sr_lensShift < -.9 ? -.9 : sr_lensShift > .9 ? .9 : sr_lensShift ), 0, 0 );
+#endif
     glFrustum(-nnear * xmul, nnear * xmul, -nnear * ymul, nnear * ymul, nnear, ffar);
 #endif
 

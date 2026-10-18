@@ -726,6 +726,7 @@ static bool s_VetoRecording( tString const & line )
 {
     static char const * vetos_char[]=
         { "#", "PASSWORD", "ADMIN_PASS", "LOCAL_USER", "LOCAL_TEAM",
+          "PLATFORM_SERVER_KEY",
           0 };
 
     static std::vector< tString > vetos = st_Stringify( vetos_char );

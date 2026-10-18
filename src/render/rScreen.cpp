@@ -66,6 +66,11 @@ tCONFIG_ENUM( rVSync );
 
 SDL_Surface *sr_screen=NULL; // our window
 
+#if !defined(DEDICATED) && SDL_VERSION_ATLEAST(2,0,0)
+SDL_Window * sr_window = NULL;              // the SDL2 window
+static SDL_GLContext sr_glContext = NULL;   // and its GL context
+#endif
+
 #ifndef DEDICATED
 static int default_texturemode = GL_LINEAR_MIPMAP_LINEAR;
 #endif
@@ -116,7 +121,11 @@ rScreenSettings currentScreensetting(sr_DesktopScreensizeSupported() ? ArmageTro
 
 bool sr_DesktopScreensizeSupported()
 {
-#ifndef DEDICATED
+#if defined(DEDICATED)
+    return false;
+#elif SDL_VERSION_ATLEAST(2,0,0)
+    return true;
+#else
     SDL_version const & sdlVersion = *SDL_Linked_Version();
 
     return
@@ -125,8 +134,6 @@ bool sr_DesktopScreensizeSupported()
       ( sdlVersion.minor > 2 || 
         ( sdlVersion.minor == 2 &&
           ( sdlVersion.patch >= 10 ) ) ) );
-#else
-    return false;
 #endif
 }
 
@@ -402,8 +409,8 @@ static void sr_SetGLAttributes( int rDepth, int gDepth, int bDepth, int zDepth )
     SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, zDepth );
     SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
 
-#if SDL_VERSION_ATLEAST(1, 2, 10)
-    // requires SDL 1.2.10
+#if SDL_VERSION_ATLEAST(1, 2, 10) && !SDL_VERSION_ATLEAST(2,0,0)
+    // requires SDL 1.2.10; SDL2 sets the swap interval on the context instead
     switch (currentScreensetting.vSync)
     {
     case ArmageTron_VSync_On:
@@ -449,7 +456,28 @@ static bool lowlevel_sr_InitDisplay(){
         // select sane defaults in case the following operation fails
         sr_desktopWidth = 800;
         sr_desktopHeight = 600;
-        
+
+#if SDL_VERSION_ATLEAST(2,0,0)
+        SDL_DisplayMode desktopMode;
+        if ( SDL_GetDesktopDisplayMode( 0, &desktopMode ) == 0 )
+        {
+            int const bpp = SDL_BITSPERPIXEL( desktopMode.format );
+            if ( bpp >= 15 )
+            {
+                Uint32 rMask, gMask, bMask, aMask;
+                int bppOut;
+                if ( SDL_PixelFormatEnumToMasks( desktopMode.format, &bppOut, &rMask, &gMask, &bMask, &aMask ) )
+                {
+                    desktopCD    = bpp;
+                    desktopCD_R  = countBits(rMask);
+                    desktopCD_G  = countBits(gMask);
+                    desktopCD_B  = countBits(bMask);
+                }
+            }
+            sr_desktopWidth  = desktopMode.w;
+            sr_desktopHeight = desktopMode.h;
+        }
+#else
         const SDL_VideoInfo* videoInfo     = SDL_GetVideoInfo( );
         if( videoInfo )
         {
@@ -476,18 +504,20 @@ static bool lowlevel_sr_InitDisplay(){
             }
 #endif
         }
+#endif // SDL2
     }
 
     if (!sr_screen)
     {
+        tString windowTitle;
         {
             tOutput o("$game_name");
-            tString s;
-            s << o;
-            SDL_WM_SetCaption(s, s);
+            windowTitle << o;
         }
-
+#if !SDL_VERSION_ATLEAST(2,0,0)
+        SDL_WM_SetCaption(windowTitle, windowTitle);
         SDL_EnableUNICODE(1);
+#endif
 
         int singleCD_R	= 5;
         int singleCD_G	= 5;
@@ -535,6 +565,75 @@ static bool lowlevel_sr_InitDisplay(){
 
 
 
+#if SDL_VERSION_ATLEAST(2,0,0)
+        // the per channel depths went into sr_SetGLAttributes; SDL2 picks the mode itself
+        (void) fullCD;
+
+        Uint32 flags = SDL_WINDOW_OPENGL;
+#ifndef FORCE_WINDOW
+        if (currentScreensetting.fullscreen)
+            flags |= SDL_WINDOW_FULLSCREEN;
+#endif
+        // desktop resolution selected
+        if ( sr_screenWidth + sr_screenHeight == 0 )
+        {
+            sr_screenWidth = sr_desktopWidth;
+            sr_screenHeight = sr_desktopHeight;
+            if ( flags & SDL_WINDOW_FULLSCREEN )
+                flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+        }
+
+        sr_window = SDL_CreateWindow( windowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                      sr_screenWidth, sr_screenHeight, flags );
+        if ( !sr_window && ( flags & SDL_WINDOW_FULLSCREEN ) )
+        {
+            // try the other way round
+            flags &= ~Uint32(SDL_WINDOW_FULLSCREEN_DESKTOP);
+            sr_window = SDL_CreateWindow( windowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                          sr_screenWidth, sr_screenHeight, flags );
+            if ( sr_window )
+                currentScreensetting.fullscreen=!currentScreensetting.fullscreen;
+        }
+        if ( !sr_window )
+        {
+            lastError.Clear();
+            lastError << "Couldn't create window: ";
+            lastError << SDL_GetError();
+            std::cerr << lastError << '\n';
+            return false;
+        }
+
+        sr_glContext = SDL_GL_CreateContext( sr_window );
+        if ( !sr_glContext )
+        {
+            lastError.Clear();
+            lastError << "Couldn't create GL context: ";
+            lastError << SDL_GetError();
+            std::cerr << lastError << '\n';
+            SDL_DestroyWindow( sr_window );
+            sr_window = NULL;
+            return false;
+        }
+
+        switch (currentScreensetting.vSync)
+        {
+        case ArmageTron_VSync_On:
+            SDL_GL_SetSwapInterval( 1 );
+            break;
+        case ArmageTron_VSync_Off:
+        case ArmageTron_VSync_MotionBlur:
+            SDL_GL_SetSwapInterval( 0 );
+            break;
+        case ArmageTron_VSync_Default:
+            break;
+        }
+
+        SDL_GL_GetDrawableSize( sr_window, &sr_screenWidth, &sr_screenHeight );
+
+        // sr_screen only serves as the "display is up" flag from here on
+        static SDL_Surface * dummy = SDL_CreateRGBSurface( 0, 1, 1, 32, 0, 0, 0, 0 );
+        sr_screen = dummy;
+#else // SDL 1.2
         /*
           #ifdef POWERPAK_DEB
           PD_SetGFXMode(sr_screenWidth, sr_screenHeight, 32, PD_DEFAULT);
@@ -671,6 +770,7 @@ static bool lowlevel_sr_InitDisplay(){
                 */
             }
         }
+#endif // SDL 1.2
     }
 
     // sanity check texture modes
@@ -751,7 +851,9 @@ static bool lowlevel_sr_InitDisplay(){
 #endif
 #endif
     renderer_identification << rRenderIdCallback::RenderId() << ' ';
-#ifdef SDL_OPENGL
+#if SDL_VERSION_ATLEAST(2,0,0)
+    renderer_identification << "SDL 2\n";
+#elif defined(SDL_OPENGL)
     renderer_identification << "SDL 1.2\n";
     renderer_identification << "USE_SDL=" << currentScreensetting.useSDL
     << '\n';
@@ -927,6 +1029,18 @@ void sr_ExitDisplay(){
 
     if (sr_screen){
         sr_LockSDL();
+#if SDL_VERSION_ATLEAST(2,0,0)
+        if ( sr_glContext )
+        {
+            SDL_GL_DeleteContext( sr_glContext );
+            sr_glContext = NULL;
+        }
+        if ( sr_window )
+        {
+            SDL_DestroyWindow( sr_window );
+            sr_window = NULL;
+        }
+#endif
         // z-man: according to man SDL_SetVideoSurface, screen should not bee freed.
         // SDL_FreeSurface(sr_screen);
         sr_screen=NULL;
@@ -1157,7 +1271,12 @@ void sr_Activate(bool active)
 #ifdef WIN32
     if ( currentScreensetting.fullscreen && !active )
     {
+#if SDL_VERSION_ATLEAST(2,0,0)
+        if ( sr_window )
+            SDL_MinimizeWindow( sr_window );
+#else
         SDL_WM_IconifyWindow();
+#endif
     }
 #endif
 #endif
@@ -1188,3 +1307,149 @@ void rCallbackAfterScreenModeChange::Exec()
     tCallback::Exec(sr_AfterAnchor);
 }
 
+
+#if !defined(DEDICATED) && SDL_VERSION_ATLEAST(2,0,0)
+
+// SDL 1.2 style application state from the SDL2 window flags
+Uint8 sr_GetAppState()
+{
+    if ( !sr_window )
+        return SDL_APPACTIVE;
+
+    Uint32 const flags = SDL_GetWindowFlags( sr_window );
+    Uint8 state = 0;
+    if ( !( flags & SDL_WINDOW_MINIMIZED ) )
+        state |= SDL_APPACTIVE;
+    if ( flags & SDL_WINDOW_INPUT_FOCUS )
+        state |= SDL_APPINPUTFOCUS;
+    if ( flags & SDL_WINDOW_MOUSE_FOCUS )
+        state |= SDL_APPMOUSEFOCUS;
+    return state;
+}
+
+// SDL 1.2 keysym number of an SDL2 scancode for the keys that have no
+// ASCII keycode; 0 if unknown
+static int sr_KeysymFromScancode( SDL_Scancode scancode )
+{
+    if ( scancode >= SDL_SCANCODE_F1 && scancode <= SDL_SCANCODE_F12 )
+        return 282 + ( scancode - SDL_SCANCODE_F1 );
+    if ( scancode >= SDL_SCANCODE_F13 && scancode <= SDL_SCANCODE_F15 )
+        return 294 + ( scancode - SDL_SCANCODE_F13 );
+    if ( scancode >= SDL_SCANCODE_KP_1 && scancode <= SDL_SCANCODE_KP_9 )
+        return 257 + ( scancode - SDL_SCANCODE_KP_1 );
+
+    switch ( scancode )
+    {
+    case SDL_SCANCODE_KP_0:         return 256;
+    case SDL_SCANCODE_KP_PERIOD:    return 266;
+    case SDL_SCANCODE_KP_DIVIDE:    return 267;
+    case SDL_SCANCODE_KP_MULTIPLY:  return 268;
+    case SDL_SCANCODE_KP_MINUS:     return 269;
+    case SDL_SCANCODE_KP_PLUS:      return 270;
+    case SDL_SCANCODE_KP_ENTER:     return 271;
+    case SDL_SCANCODE_KP_EQUALS:    return 272;
+    case SDL_SCANCODE_UP:           return 273;
+    case SDL_SCANCODE_DOWN:         return 274;
+    case SDL_SCANCODE_RIGHT:        return 275;
+    case SDL_SCANCODE_LEFT:         return 276;
+    case SDL_SCANCODE_INSERT:       return 277;
+    case SDL_SCANCODE_HOME:         return 278;
+    case SDL_SCANCODE_END:          return 279;
+    case SDL_SCANCODE_PAGEUP:       return 280;
+    case SDL_SCANCODE_PAGEDOWN:     return 281;
+    case SDL_SCANCODE_NUMLOCKCLEAR: return 300;
+    case SDL_SCANCODE_CAPSLOCK:     return 301;
+    case SDL_SCANCODE_SCROLLLOCK:   return 302;
+    case SDL_SCANCODE_RSHIFT:       return 303;
+    case SDL_SCANCODE_LSHIFT:       return 304;
+    case SDL_SCANCODE_RCTRL:        return 305;
+    case SDL_SCANCODE_LCTRL:        return 306;
+    case SDL_SCANCODE_RALT:         return 307;
+    case SDL_SCANCODE_LALT:         return 308;
+    case SDL_SCANCODE_RGUI:         return 309;
+    case SDL_SCANCODE_LGUI:         return 310;
+    case SDL_SCANCODE_MODE:         return 313;
+    case SDL_SCANCODE_APPLICATION:  return 314;
+    case SDL_SCANCODE_HELP:         return 315;
+    case SDL_SCANCODE_PRINTSCREEN:  return 316;
+    case SDL_SCANCODE_SYSREQ:       return 317;
+    case SDL_SCANCODE_PAUSE:        return 318;
+    case SDL_SCANCODE_MENU:         return 319;
+    case SDL_SCANCODE_POWER:        return 320;
+    case SDL_SCANCODE_UNDO:         return 322;
+    default:                        return 0;
+    }
+}
+
+SDL_Keycode sr_KeycodeFromKeysym( int sym )
+{
+    if ( sym < 128 )
+        return static_cast< SDL_Keycode >( sym );
+
+    for ( int scancode = 0; scancode < SDL_NUM_SCANCODES; ++scancode )
+        if ( sr_KeysymFromScancode( static_cast< SDL_Scancode >( scancode ) ) == sym )
+            return SDL_GetKeyFromScancode( static_cast< SDL_Scancode >( scancode ) );
+
+    return SDLK_UNKNOWN;
+}
+
+// the character SDL 1.2 would have reported for a US layout key press
+static Uint16 sr_UnicodeFromKeysym( int sym, Uint16 mod )
+{
+    if ( sym == 8 || sym == 9 || sym == 13 || sym == 27 || sym == 127 )
+        return static_cast< Uint16 >( sym );
+    if ( sym == 271 )
+        return 13;
+    if ( sym < 32 || sym > 126 )
+        return 0;
+
+    bool const shift = ( mod & KMOD_SHIFT ) != 0;
+    bool const caps  = ( mod & KMOD_CAPS ) != 0;
+    if ( sym >= 'a' && sym <= 'z' )
+        return static_cast< Uint16 >( ( shift != caps ) ? sym - 'a' + 'A' : sym );
+    if ( !shift )
+        return static_cast< Uint16 >( sym );
+
+    static char const * const plain   = "`1234567890-=[]\\;',./";
+    static char const * const shifted = "~!@#$%^&*()_+{}|:\"<>?";
+    for ( int i = 0; plain[i]; ++i )
+        if ( plain[i] == sym )
+            return static_cast< Uint16 >( shifted[i] );
+
+    return static_cast< Uint16 >( sym );
+}
+
+bool sr_TranslateEvent( SDL_Event & event )
+{
+    switch ( event.type )
+    {
+    case SDL_KEYDOWN:
+    case SDL_KEYUP:
+    {
+        // SDL 1.2 reported no key repeats unless asked to
+        if ( event.key.repeat )
+            return false;
+
+        SDL_Keysym & keysym = event.key.keysym;
+        int sym = keysym.sym;
+        if ( sym & SDLK_SCANCODE_MASK )
+            sym = sr_KeysymFromScancode( keysym.scancode );
+        else if ( sym >= 128 )
+            sym = ( sym < 256 ) ? sym : 0;      // Latin-1 keysyms exist in SDL 1.2, nothing above
+        if ( sym == 0 && keysym.scancode != SDL_SCANCODE_UNKNOWN )
+            sym = sr_KeysymFromScancode( keysym.scancode );
+
+        keysym.sym = sym;
+        sr_SetKeysymUnicode( keysym, sr_UnicodeFromKeysym( sym, keysym.mod ) );
+        return true;
+    }
+    case SDL_TEXTINPUT:
+    case SDL_TEXTEDITING:
+        // characters are synthesized from the key events instead
+        return false;
+    default:
+        return true;
+    }
+}
+
+#endif // SDL2

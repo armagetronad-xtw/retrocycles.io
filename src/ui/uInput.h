@@ -304,5 +304,12 @@ void su_HandleDelayedEvents( );				// set menu state
 void su_InputSync(); // tells the input system that a new frame has been drawn;
 // autorepeat functions may be called.
 void su_ClearKeys(); // clears all keys into the unpressed state.
+
+#ifdef __EMSCRIPTEN__
+// browser build (gBrowserApi.cpp): every registered action, for the page's
+// key binding table
+typedef void su_BrowserActionVisitor( uAction * action, void * context );
+void su_BrowserVisitActions( su_BrowserActionVisitor * visit, void * context );
+#endif
 #endif
 

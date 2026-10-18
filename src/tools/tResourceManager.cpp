@@ -8,7 +8,14 @@
 #include <fstream>
 #include <sys/types.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <iostream>
+#include <string>
+#include <vector>
+#else
 #include <libxml/nanohttp.h>
+#endif
 
 #include "tConfiguration.h"
 #include "tDirectories.h"
@@ -72,9 +79,248 @@ tString tResourceManager::resRepoServer("http://resource.armagetronad.net/resour
 tString tResourceManager::resRepoClient("http://resource.armagetronad.net/resource/");
 static tSettingItem<tString> conf_res_repo("RESOURCE_REPOSITORY_CLIENT", tResourceManager::resRepoClient);
 
+#ifdef __EMSCRIPTEN__
+/* The asynchronous fetch. One request at a time: fetch(url) in the page,
+   the body written into the resource cache (tPathResource::GetWritePath,
+   /aa/user/resource/automatic, an IDBFS mount set up by web/wasm/aa_api.js
+   so it survives reloads) with FS.writeFile, then the mount is flushed.
+   Status: 0 running, 1 done, 2 failed (network, CORS, non-2xx). The
+   repository must allow the page's origin (Access-Control-Allow-Origin);
+   the official one does not, so the page normally names a resource proxy
+   (Module.__aaResourceProxy, set by aa_api.js setResourceProxy(): the
+   deploy's /resource/ route, web/deploy/Caddyfile) and every URL is then
+   requested as <proxy><host>/<path> instead (BrowserProxyUrl). */
+EM_JS_DEPS(tResourceManager, "$UTF8ToString,$stringToNewUTF8");
+
+EM_JS(void, tResourceFetchStart, (char const * urlPtr, char const * pathPtr), {
+    var url = UTF8ToString(urlPtr);
+    var path = UTF8ToString(pathPtr);
+    var state = Module["__aaFetch"] = { status: 0, bytes: 0, error: "" };
+    fetch(url, { mode: "cors", credentials: "omit", cache: "default" }).then(function (response) {
+        if (!response.ok)
+            throw new Error("HTTP " + response.status);
+        return response.arrayBuffer();
+    }).then(function (buffer) {
+        FS.writeFile(path, new Uint8Array(buffer));
+        state.bytes = buffer.byteLength;
+        state.status = 1;
+        if (FS.syncfs)
+            FS.syncfs(false, function (err) { if (err) console.log("BROWSER: resource cache sync failed: " + err); });
+    }).catch(function (e) {
+        state.error = String(e && e.message ? e.message : e);
+        state.status = 2;
+    });
+});
+
+EM_JS(int, tResourceFetchStatus, (), {
+    var state = Module["__aaFetch"];
+    return state ? state.status : 2;
+});
+
+EM_JS(int, tResourceFetchBytes, (), {
+    var state = Module["__aaFetch"];
+    return state ? state.bytes : 0;
+});
+
+EM_JS(char *, tResourceFetchError, (), {
+    var state = Module["__aaFetch"];
+    return stringToNewUTF8(state ? state.error : "no fetch");
+});
+
+// the resource proxy base set by the page ("" = fetch directly)
+EM_JS(char *, tResourceProxyBase, (), {
+    var base = Module["__aaResourceProxy"];
+    return stringToNewUTF8(base ? String(base) : "");
+});
+
+// the page's origin ("http://host:port"; "" outside a page)
+EM_JS(char *, tResourcePageOrigin, (), {
+    var origin = (typeof location !== "undefined" && /^https?:$/.test(location.protocol)) ? location.origin : "";
+    return stringToNewUTF8(origin);
+});
+
+namespace
+{
+// stdout (the browser console); the in-game console only on request
+void BrowserResourceLog( std::string const & line )
+{
+    tConsole::BrowserLog( "resource " + line );
+}
+
+struct tBrowserFetch
+{
+    bool running = false;
+    tString file;                       // the resource being fetched
+    tString savePath;                   // where it goes
+    std::vector< std::string > urls;    // candidates (original URLs), tried in order
+    size_t next = 0;                    // index of the URL being fetched
+    bool chained = false;               // this is the DTD of the map fetched before
+};
+tBrowserFetch st_fetch;
+
+bool BrowserResourceLocal( char const * file )
+{
+    return tDirectories::Resource().GetReadPath( file ).Len() > 1;
+}
+
+//! the URL to request: the original one, or through the resource proxy the
+//! page configured: <base><host>/<path>, the scheme dropped (the proxy
+//! picks https for a plain host, http for host:port; web/deploy/Caddyfile).
+//! URLs on the page's own origin need no CORS and go direct.
+std::string BrowserProxyUrl( std::string const & url, bool & proxied )
+{
+    proxied = false;
+    char * basePtr = tResourceProxyBase();
+    std::string base( basePtr );
+    free( basePtr );
+    size_t const scheme = url.find( "://" );
+    if ( base.empty() || scheme == std::string::npos )
+        return url;
+    char * originPtr = tResourcePageOrigin();
+    std::string const origin( originPtr );
+    free( originPtr );
+    if ( !origin.empty() && url.compare( 0, origin.size() + 1, origin + "/" ) == 0 )
+        return url;
+    if ( base[base.size() - 1] != '/' )
+        base += '/';
+    proxied = true;
+    // http://host/path -> <base>host/path
+    return base + url.substr( scheme + 3 );
+}
+
+void BrowserFetchNext()
+{
+    tBrowserFetch & f = st_fetch;
+    bool proxied = false;
+    std::string const request = BrowserProxyUrl( f.urls[f.next], proxied );
+    BrowserResourceLog( std::string( static_cast< char const * >( f.file ) ) + " fetching from " + f.urls[f.next]
+                        + ( proxied ? " via proxy " + request : std::string() ) );
+    tResourceFetchStart( request.c_str(), f.savePath );
+}
+
+//! the DOCTYPE SYSTEM reference of an XML file, empty when none
+std::string BrowserDoctypeSystem( char const * path )
+{
+    std::ifstream in( path, std::ios::binary );
+    char buffer[4096];
+    in.read( buffer, sizeof( buffer ) );
+    std::string const head( buffer, static_cast< size_t >( in.gcount() ) );
+    size_t const doctype = head.find( "<!DOCTYPE" );
+    if ( doctype == std::string::npos )
+        return std::string();
+    size_t const system = head.find( "SYSTEM", doctype );
+    if ( system == std::string::npos )
+        return std::string();
+    size_t const open = head.find_first_of( "\"'", system );
+    if ( open == std::string::npos )
+        return std::string();
+    size_t const close = head.find( head[open], open + 1 );
+    if ( close == std::string::npos )
+        return std::string();
+    return head.substr( open + 1, close - open - 1 );
+}
+}
+
+bool tResourceManager::BrowserPrefetchBegin( char const * uri, char const * file )
+{
+    tBrowserFetch & f = st_fetch;
+    if ( !file || !file[0] || !tPath::IsValidPath( file ) )
+        return false;
+    // a fetch still marked running was left by a game that ended while it ran
+    // (nothing polls it any more); the new one takes over. The old request may
+    // still finish and cache its file, which does no harm.
+    if ( f.running )
+    {
+        BrowserResourceLog( std::string( static_cast< char const * >( f.file ) ) + " fetch abandoned." );
+        f.running = false;
+    }
+    if ( BrowserResourceLocal( file ) )
+    {
+        BrowserResourceLog( std::string( file ) + " cached." );
+        return false;
+    }
+    tString const savePath = tDirectories::Resource().GetWritePath( file );
+    if ( savePath.Len() <= 1 )
+        return false;
+
+    f = tBrowserFetch();
+    f.file = file;
+    f.savePath = savePath;
+    if ( uri && uri[0] && strcmp( "0", uri ) )
+        f.urls.push_back( uri );
+    if ( resRepoServer.Len() > 2 )
+        f.urls.push_back( std::string( static_cast< char const * >( resRepoServer ) ) + file );
+    if ( resRepoClient.Len() > 2 && resRepoClient != resRepoServer )
+        f.urls.push_back( std::string( static_cast< char const * >( resRepoClient ) ) + file );
+    if ( f.urls.empty() )
+        return false;
+
+    f.running = true;
+    BrowserFetchNext();
+    return true;
+}
+
+bool tResourceManager::BrowserPrefetchPoll()
+{
+    tBrowserFetch & f = st_fetch;
+    if ( !f.running )
+        return true;
+
+    int const status = tResourceFetchStatus();
+    if ( status == 0 )
+        return false;
+
+    if ( status == 2 )
+    {
+        char * error = tResourceFetchError();
+        BrowserResourceLog( std::string( static_cast< char const * >( f.file ) ) + " fetch failed: " + error );
+        free( error );
+        if ( ++f.next < f.urls.size() )
+        {
+            BrowserFetchNext();
+            return false;
+        }
+        remove( f.savePath );
+        f.running = false;
+        return true;
+    }
+
+    BrowserResourceLog( std::string( static_cast< char const * >( f.file ) ) + " fetched, " + std::to_string( tResourceFetchBytes() ) + " bytes." );
+
+    // the map's DTD, if it is not local either
+    std::string const dtd = f.chained ? std::string() : BrowserDoctypeSystem( f.savePath );
+    f.running = false;
+    if ( !dtd.empty() && dtd.find( "://" ) == std::string::npos && !BrowserResourceLocal( dtd.c_str() ) )
+    {
+        if ( BrowserPrefetchBegin( NULL, dtd.c_str() ) )
+        {
+            st_fetch.chained = true;
+            return false;
+        }
+    }
+    return true;
+}
+
+tString const & tResourceManager::BrowserPrefetchFile()
+{
+    static tString const none;
+    return st_fetch.running ? st_fetch.file : none;
+}
+#endif
+
 tResourceManager::Result tResourceManager::FetchURI(const char* URI, std::ostream& o)
 {
-#ifdef LIBCURL_PROTOCOL_HTTP
+#ifdef __EMSCRIPTEN__
+    {
+        /* No blocking download in the event driven browser build: the
+           asynchronous prefetch above runs before the map is needed and
+           fills the cache; a resource that still is not there fails here
+           and the caller falls back like it does natively. */
+        (void) o;
+        con << tOutput("$resource_fetcherror_noconnect", URI);
+        return Result::ERROR_Uri;
+    }
+#elif defined(LIBCURL_PROTOCOL_HTTP)
     {
         tCurlLocal handle;
         if (nullptr == handle)
@@ -115,9 +361,7 @@ tResourceManager::Result tResourceManager::FetchURI(const char* URI, std::ostrea
             con << "curl_easy_perform() failed: " << curl_easy_strerror(result) << "\n";
             return Result::ERROR_Unknown;
         }
-
-        // Clean up
-        curl_easy_cleanup(handle);
+        // tCurlLocal cleans the handle up
     }
 #else
 #ifdef LIBXML_HTTP_ENABLED

@@ -145,6 +145,12 @@ static rNoAutoDisplayAtNewlineCallback su_noNewline( uMenu::MenuActive );
 // static rSmallConsoleCallback su_smallConsole( su_InMenu );
 
 void uMenu::OnEnter(){
+#ifdef __EMSCRIPTEN__
+    // the browser build is event driven and cannot run a nested loop; the
+    // page's HTML UI replaces the menus (in-game menu, chat line, votes)
+    con << "Menus are not available in the browser build.\n";
+    return;
+#endif
 #ifndef DEDICATED
     bool localRepeat = false;
     float nextrepeat = 0.0f;
@@ -950,7 +956,8 @@ bool uMenuItemString::Event(SDL_Event &e){
         //        c.sym = SDLK_DOWN;
     }
     else {
-        if (32 <= c.unicode  && c.unicode < 256)
+        Uint16 const unicode = sr_KeysymUnicode( c );
+        if (32 <= unicode  && unicode < 256)
         {
             ret=true;
 
@@ -962,7 +969,7 @@ bool uMenuItemString::Event(SDL_Event &e){
 
                 // guarantee proper null termination
                 (*content)[content->Len()-1]='\0';
-                (*content)[cursorPos]=c.unicode;
+                (*content)[cursorPos]=unicode;
                 cursorPos++;
             }
         }
@@ -1232,7 +1239,11 @@ bool uMenu::IdleInput( bool processInput )
 // return value: false only if the user pressed ESC
 bool uMenu::Message(const tOutput& message, const tOutput& interpretation, REAL to){
     bool ret = true;
-#ifdef DEDICATED
+#if defined(__EMSCRIPTEN__)
+    // no modal loop in the browser build: the page shows it. tConsole's
+    // message callback is gBrowserApi.cpp's there, not this function.
+    return tConsole::Message( message, interpretation, to );
+#elif defined(DEDICATED)
     con << message << ":\n";
     con << interpretation << '\n';
 #else

@@ -79,6 +79,15 @@ uAction::~uAction(){
     su_allActions[localID] = NULL;
 }
 
+#ifdef __EMSCRIPTEN__
+void su_BrowserVisitActions( su_BrowserActionVisitor * visit, void * context )
+{
+    for ( int i = 0; i < su_allActionsLen; ++i )
+        if ( su_allActions[i] )
+            (*visit)( su_allActions[i], context );
+}
+#endif
+
 uAction * uAction::Find( char const * name )
 {
     for(int i=su_allActionsLen-1;i>=0;i--)
@@ -344,7 +353,11 @@ int uPlayerPrototype::Num(){return nextid;}
 static char const * keyname(int sym){
 #ifndef DEDICATED
     if (sym<=SDLK_LAST)
+#if SDL_VERSION_ATLEAST(2,0,0)
+        return SDL_GetKeyName(sr_KeycodeFromKeysym(sym));
+#else
         return SDL_GetKeyName(static_cast<SDLKey>(sym));
+#endif
     else switch (sym){
         case SDLK_MOUSE_X_PLUS: return "Mouse right";
         case SDLK_MOUSE_X_MINUS: return "Mouse left";

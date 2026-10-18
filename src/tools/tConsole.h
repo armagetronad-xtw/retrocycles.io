@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tString.h"
 #include "defs.h"
 #include "tLinkedList.h"
+#include <string>
 
 class tOutput;
 
@@ -100,6 +101,18 @@ public:
 
     static void RegisterMessageCallback(MessageCallback *callback);
     static void RegisterIdleCallback(IdleCallback *callback);
+
+#ifdef __EMSCRIPTEN__
+    // browser build: every finished line (color codes included, trailing
+    // newline stripped) also goes to this callback, for the page's event stream
+    typedef void LineCallback(tString const & line);
+    static void RegisterLineCallback(LineCallback *callback);
+
+    // browser build: a diagnostic line, "BROWSER: " + line, to stdout (the page's
+    // browser console); on the in-game console as well
+    // only with BROWSER_CONSOLE_LOG 1 (local, not saved)
+    static void BrowserLog(std::string const & line);
+#endif
 
 protected:
     static void RegisterBetterConsole(tConsole *better);

@@ -198,6 +198,26 @@ void usleep(int x)
 
 #include <sys/time.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <cmath>
+
+/* Emscripten's gettimeofday is Date.now(): whole milliseconds. A game
+   simulating 6.94 ms display frames in steps of 6 or 7 ms judders, and the
+   frame a key triggers (gBrowser.cpp) gets a step of 0 or 1 ms.
+   performance.now() has the fraction (100 us in Chrome, finer when the
+   page is cross-origin isolated); everything here is relative to
+   timeStart, so its origin does not matter. */
+void GetTime( tTime & time )
+{
+    double const ms = emscripten_get_now();
+    double const s = floor( ms / 1000 );
+    time.seconds = static_cast< int >( s );
+    time.microseconds = static_cast< int >( ( ms - s * 1000 ) * 1000 );
+
+    time.Normalize();
+}
+#else
 void GetTime( tTime & time )
 {
     struct timeval tp;
@@ -210,6 +230,7 @@ void GetTime( tTime & time )
 
     time.Normalize();
 }
+#endif
 
 //! returns true if a timer with more than millisecond accuracy is available
 bool tTimerIsAccurate()
@@ -287,12 +308,28 @@ void tAdvanceFrameSys( tTime & start, tTime & relative )
 #endif
 }
 
+#ifdef __EMSCRIPTEN__
+/* The browser client is event driven (one frame per animation frame, see
+   gBrowser.cpp): nothing may block the one thread and there is no Asyncify
+   to unwind to the event loop, so a delay is a no-op. The waits that used
+   to sit in nested loops are states polled from the frame callback, and
+   the frame rate paces the rest. */
+static void st_Sleep( int )
+{
+}
+#else
+static void st_Sleep( int usecdelay )
+{
+    usleep( usecdelay );
+}
+#endif
+
 static bool s_delayedInPlayback = false;
 void tDelay( int usecdelay )
 {
     // delay a bit if we're not playing back
     if ( ! tRecorder::IsPlayingBack() )
-        usleep( usecdelay );
+        st_Sleep( usecdelay );
     else
         s_delayedInPlayback = true;
 }
@@ -301,7 +338,7 @@ void tDelayForce( int usecdelay )
 {
     // delay a bit
     if ( !s_delayedInPlayback )
-        usleep( usecdelay );
+        st_Sleep( usecdelay );
     else
     {
         // when recording, the machine was idling around. No need to play that back.

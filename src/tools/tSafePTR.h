@@ -500,6 +500,12 @@ public:
         tASSERT ( refCtr_ >= 0 );
         mutex_.acquire();
         --refCtr_;
+#ifdef __GNUC__
+        // keep the decrement: GCC 14 -O2 dropped it in exception cleanups (a smart pointer
+        // destroyed while an exception unwinds), as if nothing could read it after _Unwind_Resume,
+        // and the object kept one reference for good. Every dying cycle leaked its grid face that way.
+        __asm__ __volatile__( "" : : "m"( refCtr_ ) );
+#endif
         bool kill = (refCtr_ <= 0);
         mutex_.release();
 

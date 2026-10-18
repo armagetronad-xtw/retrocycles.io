@@ -29,6 +29,22 @@ public:
 
     //! client determined resource repository
     static tString resRepoClient;
+
+#ifdef __EMSCRIPTEN__
+    /* Browser build: FetchURI cannot block, so a resource that is not in the
+       local cache is fetched asynchronously before the code that needs it
+       runs (gGame.cpp, GS_CREATE_GRID). Begin() returns false when the file
+       is already local (nothing to wait for) or a fetch is already running;
+       true when a fetch started: poll it once per frame until Poll() returns
+       true, then call locateResource/openResource as usual (it finds the
+       cached copy, or fails as it does natively). The same URI list as
+       locateResource is tried in order; a fetched map's DOCTYPE SYSTEM
+       reference is fetched next if it is not local either. */
+    static bool BrowserPrefetchBegin(const char *uri, const char *file);
+    static bool BrowserPrefetchPoll();
+    //! the file of the fetch in progress, empty when none
+    static tString const & BrowserPrefetchFile();
+#endif
 };
 
 #endif //ArmageTron_RESOURCEMANAGER_H

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en" data-build="debug" data-resource-proxy="">
+<head>
+<meta charset="utf-8">
+<title>Armagetron Advanced &mdash; browser client</title>
+<style>
+    /* layout only: the page is test scaffolding for the API (API.md), not a UI design */
+    /* the canvas fills the viewport width up to 1280 px at 16:9; the shim
+       sizes its backing store from the CSS size times devicePixelRatio */
+    #stage { position: relative; width: min(1280px, 100vw); }
+    #canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+    /* fullscreen (Fullscreen API on the canvas): the whole screen, the shim's
+       ResizeObserver picks the new CSS size up */
+    #canvas:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; }
+    #chatbox { position: absolute; left: 0; bottom: 0; width: 100%; z-index: 2; }
+    #chat { width: 90%; }
+    /* the in-game menu (Escape): an overlay on the canvas, plain HTML */
+    #menu { position: absolute; left: 1em; top: 1em; z-index: 3; background: rgba(255,255,255,.9); padding: .5em 1em; max-width: 60%; }
+    #menu .swatch { display: inline-block; width: 1em; height: 1em; vertical-align: middle; border: 1px solid #000; }
+    #console, #log, #configList, #players { max-height: 14em; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+    #columns { display: flex; gap: 1em; align-items: flex-start; flex-wrap: wrap; }
+    #configText { width: 100%; height: 12em; }
+    #settingsForm input[type=number] { width: 5em; }
+</style>
+</head>
+<body>
+<h1>Armagetron Advanced &mdash; browser client (test page)</h1>
+<p>Unstyled scaffolding over <code>aa_api.js</code> (contract: <code>API.md</code>).
+A <code>#ws://host:4535/</code> fragment connects at startup; otherwise use the form,
+whose default is <code>wss://&lt;this host&gt;/signal</code> (the deployed layout, <code>web/deploy</code>) or a
+server picked from <code>servers.json</code>.
+<code>?build=opt</code> loads <code>client_opt.js</code>. Keys go to the game unless a text field has the focus;
+the game's chat key (Enter) opens the chat line, the menu key (Escape) the in-game menu below the canvas' top left
+corner (teams, spectate, login, disconnect) and the console key (backquote) the console line.</p>
+
+<h2>connect</h2>
+<form id="connectForm">
+    <select id="servers"><option value="">(servers.json: loading)</option></select>
+    <input id="url" type="text" size="40" value="ws://127.0.0.1:4535/">
+    <button type="submit" id="connect">connect</button>
+    <button type="button" id="disconnect">disconnect</button>
+    <button type="button" id="fullscreen">fullscreen</button>
+    <button type="button" id="toggleLog">hide game log</button>
+</form>
+<p>standalone (no server):
+    <button type="button" id="startLocal">start local game</button>
+    <button type="button" id="stopLocal">stop local game</button>
+    &nbsp;attract scene:
+    <button type="button" class="scene" data-scene="1">scene 1</button>
+    <button type="button" class="scene" data-scene="2">scene 2</button>
+    <button type="button" class="scene" data-scene="3">scene 3</button>
+    <button type="button" class="scene" data-scene="4">scene 4</button>
+    <button type="button" id="sceneStop">scene stop</button>
+</p>
+<p id="state">state: (runtime loading)</p>
+<p><small>persistence: <span id="persistence">?</span>
+    audio: <span id="audio">?</span>
+    canvas: <span id="canvasSize">?</span></small></p>
+
+<h2>game</h2>
+<div id="stage">
+<canvas id="canvas" width="1280" height="720" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+<div id="chatbox" hidden><input id="chat" type="text" maxlength="200" placeholder="chat (Enter sends, Escape cancels; /team text for team chat)"></div>
+<div id="menu" hidden>
+    <b>in-game menu</b> (Escape closes)
+    <div id="teams">(no teams)</div>
+    <p>
+        <button type="button" id="newTeam">new team</button>
+        <button type="button" id="spectate">spectate</button>
+        <button type="button" id="menuDisconnect">disconnect</button>
+        <button type="button" id="menuClose">close</button>
+    </p>
+    <form id="loginForm">
+        login as <input id="loginId" type="text" size="20" placeholder="user@authority or user@ (local)">
+        <button type="submit">login</button>
+        <small>(asks the server; it answers with a password request; <code>/login user@authority</code> in the chat does the same)</small>
+    </form>
+</div>
+</div>
+
+<form id="authForm" hidden>
+    <b>the server asks for a password</b>: <span id="authMessage"></span><br>
+    <label>user <input id="authUser" type="text" size="20" autocomplete="username"></label>
+    <label>password <input id="authPassword" type="password" size="20" autocomplete="current-password"></label>
+    <button type="submit">log in</button>
+    <button type="button" id="authCancel">cancel</button>
+    <small>(the password goes into the game's scrambler only; nothing on this page logs it)</small>
+</form>
+
+<div id="columns">
+<div>
+<h3>players</h3>
+<pre id="players"></pre>
+</div>
+<div>
+<h3>message</h3>
+<pre id="message">(none)</pre>
+</div>
+<div>
+<h3>votes</h3>
+<div id="votes">(none)</div>
+</div>
+</div>
+
+<h2>settings</h2>
+<p><small>every field applies on change (Enter or leaving the field) and saves (user.cfg + IndexedDB).
+The camera fields are the custom camera (<code>START_CAM_1 1</code>, or cycle views with SWITCH_VIEW).</small></p>
+<form id="settingsForm">
+    <label>name <input id="setName" type="text" size="16" data-setting="PLAYER_1"></label>
+    <label>color r <input id="setR" type="number" min="0" max="15" data-setting="COLOR_R_1"></label>
+    <label>g <input id="setG" type="number" min="0" max="15" data-setting="COLOR_G_1"></label>
+    <label>b <input id="setB" type="number" min="0" max="15" data-setting="COLOR_B_1"></label><br>
+    <label>CAMERA_CUSTOM_RISE <input id="setCamRise" type="number" step="any" data-setting="CAMERA_CUSTOM_RISE"></label>
+    <label>CAMERA_CUSTOM_PITCH <input id="setCamPitch" type="number" step="any" data-setting="CAMERA_CUSTOM_PITCH"></label>
+    <label>CAMERA_CUSTOM_BACK <input id="setCamBack" type="number" step="any" data-setting="CAMERA_CUSTOM_BACK"></label>
+    <label>CAMERA_CUSTOM_TURN_SPEED <input id="setCamTurn" type="number" step="any" data-setting="CAMERA_CUSTOM_TURN_SPEED"></label><br>
+    <button type="button" id="reloadSettings">reload from game</button>
+</form>
+<form id="commandForm"><input id="command" type="text" size="50" placeholder="console line: SETTING value, e.g. START_CAM_1 1, or SAY hi"><button type="submit">run</button>
+    <button type="button" id="saveConfig">save (user.cfg + IndexedDB)</button></form>
+<p>find a setting: <input id="configFilter" type="text" size="30" placeholder="name prefix, e.g. CAMERA_CUSTOM"> <small>(click a line to edit it above)</small></p>
+<pre id="configList"></pre>
+
+<h3>export / import settings</h3>
+<p><small>user.cfg as the game saves it (name, colors, camera, key bindings ...; stored password hashes left out).
+Settings live in this browser profile's IndexedDB; copy the text to move them to another browser.</small></p>
+<p>
+    <button type="button" id="exportConfig">export to text</button>
+    <button type="button" id="copyConfig">copy</button>
+    <button type="button" id="importConfig">apply text (import + save)</button>
+    <span id="configStatus"></span>
+</p>
+<textarea id="configText" placeholder="export, or paste a user.cfg here and apply"></textarea>
+
+<h2>keys (player 1)</h2>
+<p>press a key: <input id="capture" type="text" size="20" readonly placeholder="(click bind first)">
+    <label><input id="showAllActions" type="checkbox"> show all actions</label></p>
+<table id="bindings" border="1"><thead><tr><th>action</th><th>keys</th><th></th></tr></thead><tbody></tbody></table>
+
+<h2>log</h2>
+<details open><summary>game console (the <code>console</code>/<code>chat</code> events; the in-game overlay is the "game log" button above)</summary>
+<pre id="console"></pre>
+</details>
+<details><summary>page log (stdout)</summary>
+<pre id="log"></pre>
+</details>
+
+<script src="aa_api.js"></script>
+<script>
+    var $ = function (id) { return document.getElementById(id); };
+    var logElement = $("log");
+    var lines = 0;
+
+    function append(element, text, limit) {
+        var count = Number(element.dataset.count || 0) + 1;
+        if (count > limit) {
+            element.textContent = "";
+            count = 1;
+        }
+        element.dataset.count = count;
+        element.appendChild(document.createTextNode(text + "\n"));
+        element.scrollTop = element.scrollHeight;
+    }
+
+    function print(text) {
+        console.log(text);
+        append(logElement, text, 400);
+    }
+
+    // the game listens on window; the canvas only needs the focus so that no
+    // text field has it. preventScroll: focusing the canvas must not scroll
+    // the page back to the top (the key binding table lives far below it)
+    function focusGame() {
+        $("canvas").focus({ preventScroll: true });
+    }
+
+    var Module = {
+        // --userdatadir /aa/user: var/ is the IDBFS mount aa_api.js sets up
+        arguments : [ "--userdatadir", "/aa/user" ],
+        canvas : $("canvas"),
+        print : print,
+        printErr : print,
+        onExit : function(code) { print("BROWSER: exit " + code); },
+        onAbort : function(what) { print("BROWSER: abort " + what + "\n" + new Error().stack); },
+        onRuntimeInitialized : function() { print("BROWSER: runtime initialized"); }
+    };
+
+    // data-resource-proxy on <html>: "" fetches maps directly (this dev page),
+    // "/resource/" is what make dist puts in: the deploy's CORS proxy (web/deploy/Caddyfile)
+    var aa = AA.prepare(Module, { resourceProxy: document.documentElement.getAttribute("data-resource-proxy") });
+    print("PAGE: resource proxy: " + (aa.getResourceProxy() || "(none, direct fetch)"));
+
+    // --- where the server is ---------------------------------------------
+    // the deployed layout (web/deploy): the page and the signalling endpoint
+    // share the host, Caddy proxies wss://<host>/signal to the server; the
+    // #ws://... fragment and servers.json override it
+    function defaultSignalUrl() {
+        if (location.hash.length > 1)
+            return location.hash.substring(1);
+        if (/^https?:$/.test(location.protocol) && !/^(127\.0\.0\.1|localhost)(:|$)/.test(location.host))
+            return AA.resolveSignalUrl("/signal");
+        return "ws://127.0.0.1:4535/";
+    }
+    $("url").value = defaultSignalUrl();
+
+    // servers.json next to the page: [{name, url, description}], url a full
+    // ws(s):// URL or a path on this host (API.md, "servers.json")
+    AA.loadServers("servers.json").then(function (servers) {
+        var select = $("servers");
+        select.textContent = "";
+        var none = document.createElement("option");
+        none.value = "";
+        none.textContent = servers.length ? "(pick a server)" : "(no servers.json)";
+        select.appendChild(none);
+        servers.forEach(function (server) {
+            var option = document.createElement("option");
+            option.value = server.url;
+            option.textContent = server.name + (server.description ? " - " + server.description : "");
+            select.appendChild(option);
+        });
+        print("PAGE: servers.json: " + servers.length + " servers");
+    });
+    $("servers").addEventListener("change", function () {
+        if (this.value)
+            $("url").value = this.value;
+    });
+
+    // --- audio -----------------------------------------------------------
+    // Web Audio starts suspended until a user gesture; aa_api.js unlocks it on
+    // the first key or pointer event (API.md unlockAudio)
+    setInterval(function () { $("audio").textContent = aa.getAudioState(); }, 1000);
+
+    // --- fullscreen ---------------------------------------------------------
+    // the Fullscreen API on the canvas (the game's TOGGLE_FULLSCREEN is inert,
+    // API.md); the shim follows the CSS size, so the backing store becomes the
+    // screen size (status line size=). Escape leaves fullscreen (the browser)
+    // and does not reach the game while an element is fullscreen.
+    $("fullscreen").addEventListener("click", function () {
+        var canvas = $("canvas");
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else if (canvas.requestFullscreen) {
+            canvas.requestFullscreen().catch(function (e) { print("PAGE: fullscreen refused: " + e.message); });
+        } else {
+            print("PAGE: no Fullscreen API");
+        }
+        focusGame();
+    });
+    document.addEventListener("fullscreenchange", function () {
+        print("PAGE: fullscreen " + (document.fullscreenElement ? "on" : "off"));
+        focusGame();
+    });
+    function showCanvasSize() {
+        var c = $("canvas");
+        var r = c.getBoundingClientRect();
+        $("canvasSize").textContent = Math.round(r.width) + "x" + Math.round(r.height) + " css, " + c.width + "x" + c.height + " backing"
+            + (document.fullscreenElement ? ", fullscreen" : "");
+    }
+    setInterval(showCanvasSize, 1000);
+
+    // --- the in-game console overlay: TEXT_OUT -------------------------------
+    // TEXT_OUT 0 hides the game's scrolling console lines over the game view
+    // (round results, chat echo, "watching" ...), not the HUD; the browser
+    // build honours it in the game (the native client forces it on there).
+    // Saved like every other setting; the page's own log below is unaffected.
+    function showLogToggle() {
+        $("toggleLog").textContent = value("TEXT_OUT") === "0" ? "show game log" : "hide game log";
+    }
+    $("toggleLog").addEventListener("click", function () {
+        aa.setConfig("TEXT_OUT", value("TEXT_OUT") === "0" ? "1" : "0");
+        aa.saveConfig();
+        showLogToggle();
+        focusGame();
+    });
+
+    // --- state -----------------------------------------------------------
+    function showState(s) {
+        $("state").textContent = "state: " + s.state + (s.reason ? " (" + s.reason + ")" : "")
+            + "  ping=" + s.ping + "ms fps=" + s.fps + " gametime=" + s.gametime + " players=" + s.players.length
+            + (s.sceneState ? " scene=" + s.sceneState + (s.sceneTransitioning ? " (transitioning)" : "") : "")
+            + (s.authPending ? " (login pending)" : "");
+        var idle = s.state === "idle" || s.state === "disconnected";
+        $("connect").disabled = !(idle || s.state === "scene");
+        $("disconnect").disabled = idle;
+        $("startLocal").disabled = !(idle || s.state === "scene");
+        $("stopLocal").disabled = s.state !== "local";
+    }
+
+    // --- standalone: the local game and the attract scene -------------------
+    // both run without a server (netstate 0); the scene is the play page's
+    // background, the local game is the desktop client's "Local Game"
+    $("startLocal").addEventListener("click", function () { aa.startLocal(); focusGame(); });
+    $("stopLocal").addEventListener("click", function () { aa.stopLocal(); focusGame(); });
+    Array.prototype.slice.call(document.querySelectorAll("button.scene")).forEach(function (button) {
+        button.addEventListener("click", function () { aa.scene(Number(button.dataset.scene)); focusGame(); });
+    });
+    $("sceneStop").addEventListener("click", function () { aa.sceneStop(); focusGame(); });
+    aa.on("scene", function (e) {
+        print("PAGE: scene " + e.state + (e.transitioning ? " (transitioning)" : " reached"));
+    });
+    aa.on("state", function (s) {
+        showState(s);
+        if (s.state !== "playing" && s.state !== "fetching") {
+            closeMenu();
+            closeAuth();
+        }
+    });
+    setInterval(function () { if (aa.ready) showState(aa.getState()); }, 1000);
+
+    aa.on("ready", function (e) {
+        $("persistence").textContent = e.persistence;
+        $("state").textContent = "state: idle";
+        loadSettings();
+        showLogToggle();
+        renderBindings();
+        $("loginId").value = value("USER_1");
+    });
+    aa.on("exit", function (e) { $("state").textContent = "state: runtime exited (" + e.code + ")"; });
+
+    // --- console, chat, messages ------------------------------------------------
+    aa.on("console", function (e) { append($("console"), e.text, 200); });
+    aa.on("chat", function (e) { append($("console"), "[chat] " + e.text, 200); });
+    aa.on("message", function (e) { $("message").textContent = e.title + "\n" + e.body; });
+    aa.on("error", function (e) { print("PAGE: api error: " + e.text); });
+    aa.on("players", function (e) {
+        $("players").textContent = e.players.map(function (p) {
+            return (p.local ? "* " : "  ") + p.name + " [" + p.color.join(",") + "] score=" + p.score
+                + " team=" + p.team + " ping=" + p.ping + (p.spectating ? " spectating" : "") + (p.chatting ? " chatting" : "");
+        }).join("\n");
+        if (!$("menu").hidden)
+            renderTeams();
+    });
+    aa.on("votes", function (e) {
+        var box = $("votes");
+        box.textContent = "";
+        if (!e.votes.length) {
+            box.textContent = "(none)";
+            return;
+        }
+        e.votes.forEach(function (v) {
+            var row = document.createElement("div");
+            row.appendChild(document.createTextNode(v.description + " " + v.details + " "));
+            [["accept", true], ["reject", false]].forEach(function (choice) {
+                var b = document.createElement("button");
+                b.type = "button";
+                b.textContent = choice[0];
+                b.onclick = function () { aa.vote(v.id, choice[1]); focusGame(); };
+                row.appendChild(b);
+            });
+            box.appendChild(row);
+        });
+    });
+
+    // the chat line over the canvas: opened by the game's chat key (chatOpen;
+    // Enter by default, see browser_user.cfg); Enter sends, Escape cancels
+    function openChat(prefill) {
+        $("chatbox").hidden = false;
+        $("chat").value = prefill || "";
+        $("chat").focus();
+        aa.setChatting(true);
+    }
+    function closeChat() {
+        $("chatbox").hidden = true;
+        aa.setChatting(false);
+        focusGame();
+    }
+    aa.on("chatOpen", function (e) { openChat(e.prefill); });
+    aa.on("consoleOpen", function () { $("command").focus(); });
+    $("chat").addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            var text = $("chat").value;
+            if (text)
+                aa.chat(text);
+            closeChat();
+            event.preventDefault();
+        } else if (event.key === "Escape") {
+            closeChat();
+            event.preventDefault();
+        }
+    });
+
+    // --- the in-game menu (Escape): teams, spectate, login, disconnect ------
+    // what the desktop client's in-game menu and its team menu (gTeam.cpp)
+    // offer, over getTeams/joinTeam/createTeam/setSpectating/login
+    function renderTeams() {
+        var box = $("teams");
+        box.textContent = "";
+        var teams = aa.getTeams();
+        var me = aa.getPlayers().filter(function (p) { return p.local; })[0];
+        if (!teams.length)
+            box.textContent = "(no teams yet)";
+        teams.forEach(function (t) {
+            var row = document.createElement("div");
+            var swatch = document.createElement("span");
+            swatch.className = "swatch";
+            swatch.style.background = "rgb(" + t.color.map(function (c) { return Math.round(c * 255 / 15); }).join(",") + ")";
+            row.appendChild(swatch);
+            row.appendChild(document.createTextNode(" " + t.name + " (" + t.players + " players, " + t.humans + " humans) "));
+            if (t.current)
+                row.appendChild(document.createTextNode("[your team] "));
+            else if (t.next)
+                row.appendChild(document.createTextNode("[your team next round] "));
+            var join = document.createElement("button");
+            join.type = "button";
+            join.textContent = "join";
+            join.disabled = !t.joinable;
+            join.onclick = function () { aa.joinTeam(t.id); renderTeams(); focusGame(); };
+            row.appendChild(join);
+            box.appendChild(row);
+        });
+        $("spectate").textContent = me && me.spectating ? "play (leave spectator mode)" : "spectate (leave the team)";
+        $("spectate").dataset.spectating = me && me.spectating ? "1" : "0";
+    }
+    function openMenu() {
+        $("menu").hidden = false;
+        renderTeams();
+        $("menuClose").focus({ preventScroll: true });
+    }
+    function closeMenu() {
+        if ($("menu").hidden)
+            return;
+        $("menu").hidden = true;
+        focusGame();
+    }
+    aa.on("menuOpen", function () {
+        if ($("menu").hidden)
+            openMenu();
+        else
+            closeMenu();
+    });
+    $("menuClose").addEventListener("click", closeMenu);
+    $("newTeam").addEventListener("click", function () { aa.createTeam(); renderTeams(); focusGame(); });
+    $("spectate").addEventListener("click", function () {
+        aa.setSpectating($("spectate").dataset.spectating !== "1");
+        renderTeams();
+        focusGame();
+    });
+    $("menuDisconnect").addEventListener("click", function () { aa.disconnect(); closeMenu(); });
+    $("loginForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        if (!aa.login($("loginId").value))
+            print("PAGE: login refused");
+        focusGame();
+    });
+
+    // --- authentication: the server's password request ----------------------
+    // authRequest arrives when the server (after login() above, a /login chat
+    // line, or on its own) wants a password; auth()/authCancel() answer it.
+    // The password field is read once and cleared; it is never printed.
+    function closeAuth() {
+        $("authForm").hidden = true;
+        $("authPassword").value = "";
+    }
+    aa.on("authRequest", function (e) {
+        $("authMessage").textContent = e.serverMessage + " (method " + e.method + ")" + (e.failed ? " - the last attempt failed" : "");
+        $("authUser").value = e.username;
+        $("authForm").hidden = false;
+        $("authPassword").focus();
+    });
+    $("authForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var ok = aa.auth($("authUser").value, $("authPassword").value);
+        closeAuth();
+        if (!ok)
+            print("PAGE: auth refused (no request pending?)");
+        focusGame();
+    });
+    $("authCancel").addEventListener("click", function () {
+        aa.authCancel();
+        closeAuth();
+        focusGame();
+    });
+
+    // --- forms -----------------------------------------------------------
+    $("connectForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        // ?transport=websocket: the game packets on the signalling socket (API.md "WebSocket transport")
+        var transport = new URLSearchParams(location.search).get("transport");
+        aa.connect($("url").value, transport === "websocket" ? { transport: "websocket" } : undefined);
+        focusGame();
+    });
+    $("disconnect").addEventListener("click", function () { aa.disconnect(); focusGame(); });
+    $("commandForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        aa.console($("command").value);
+        $("command").value = "";
+        loadSettings();
+        showLogToggle();
+        focusGame();
+    });
+
+    // the setting finder: listConfig(prefix) rendered as "NAME value" lines
+    function renderConfigList() {
+        var prefix = $("configFilter").value.trim();
+        var box = $("configList");
+        box.textContent = "";
+        if (!prefix || !aa.ready)
+            return;
+        var items = aa.listConfig(prefix);
+        items.slice(0, 200).forEach(function (item) {
+            var line = document.createElement("div");
+            line.textContent = item.name + " " + item.value + (item.writable ? "" : " (server controlled)");
+            line.style.cursor = "pointer";
+            line.onclick = function () {
+                $("command").value = item.name + " " + item.value;
+                $("command").focus();
+                $("command").setSelectionRange(item.name.length + 1, $("command").value.length);
+            };
+            box.appendChild(line);
+        });
+        if (items.length > 200)
+            box.appendChild(document.createTextNode("... " + (items.length - 200) + " more\n"));
+        if (!items.length)
+            box.textContent = "(no setting starts with " + prefix.toUpperCase() + ")";
+    }
+    $("configFilter").addEventListener("input", renderConfigList);
+
+    // --- settings: every field is one configuration item (data-setting),
+    // pre-filled from getConfig, applied with setConfig on change and saved
+    function value(name) {
+        var item = aa.getConfig(name);
+        return item ? item.value : "";
+    }
+    var settingFields = Array.prototype.slice.call(document.querySelectorAll("#settingsForm [data-setting]"));
+    function loadSettings() {
+        settingFields.forEach(function (field) { field.value = value(field.dataset.setting); });
+    }
+    settingFields.forEach(function (field) {
+        field.addEventListener("change", function () {
+            aa.setConfig(field.dataset.setting, field.value);
+            aa.saveConfig();
+            loadSettings();
+        });
+    });
+    $("settingsForm").addEventListener("submit", function (event) {
+        // Enter in a field: the change event applies it, no page reload
+        event.preventDefault();
+        if (document.activeElement && document.activeElement.blur)
+            document.activeElement.blur();
+        focusGame();
+    });
+    $("saveConfig").addEventListener("click", function () { aa.saveConfig(); focusGame(); });
+    $("reloadSettings").addEventListener("click", function () { loadSettings(); showLogToggle(); });
+
+    // --- export / import ------------------------------------------------------
+    $("exportConfig").addEventListener("click", function () {
+        $("configText").value = aa.exportConfig();
+        $("configStatus").textContent = "exported " + $("configText").value.split("\n").length + " lines";
+    });
+    $("copyConfig").addEventListener("click", function () {
+        if (!$("configText").value)
+            $("configText").value = aa.exportConfig();
+        var text = $("configText").value;
+        var done = function () { $("configStatus").textContent = "copied to the clipboard"; };
+        var fallback = function () {
+            // no clipboard API (http page, denied): leave the text selected for Ctrl+C
+            $("configText").focus();
+            $("configText").select();
+            $("configStatus").textContent = "select-all done, press Ctrl+C";
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText)
+            navigator.clipboard.writeText(text).then(done, fallback);
+        else
+            fallback();
+    });
+    $("importConfig").addEventListener("click", function () {
+        var text = $("configText").value;
+        if (!text.trim()) {
+            $("configStatus").textContent = "nothing to import";
+            return;
+        }
+        var ok = aa.importConfig(text);
+        $("configStatus").textContent = ok ? "applied and saved" : "import failed";
+        loadSettings();
+        showLogToggle();
+        renderBindings();
+        focusGame();
+    });
+
+    // --- key bindings --------------------------------------------------------
+    // the actions a player needs, in this order; "show all" lists every
+    // player/camera/global action. Bindings of other actions (and of players
+    // 2-4) stay in the key map untouched and are part of the export.
+    var mainActions = ["CYCLE_TURN_LEFT", "CYCLE_TURN_RIGHT", "CYCLE_BRAKE", "CYCLE_BRAKE_TOGGLE",
+                       "GLANCE_LEFT", "GLANCE_RIGHT", "GLANCE_BACK", "CHAT"];
+    var capturing = null; // action name while waiting for a key
+    function renderBindings() {
+        var body = $("bindings").tBodies[0];
+        body.textContent = "";
+        var actions = aa.getActions();
+        var shown;
+        if ($("showAllActions").checked) {
+            shown = actions.filter(function (a) { return a.kind === "player" || a.kind === "camera" || a.kind === "global"; });
+        } else {
+            shown = mainActions.map(function (name) {
+                return actions.filter(function (a) { return a.name === name; })[0];
+            }).filter(Boolean);
+        }
+        var bindings = aa.getBindings().filter(function (b) { return b.player === 1 || b.player === 0; });
+        shown.forEach(function (a) {
+            var player = a.kind === "global" ? 0 : 1;
+            var row = body.insertRow();
+            row.insertCell().textContent = a.name;
+            var keys = row.insertCell();
+            bindings.filter(function (b) { return b.action === a.name && b.player === player; }).forEach(function (b) {
+                var unbind = document.createElement("button");
+                unbind.type = "button";
+                unbind.textContent = (b.code || b.keyName) + " x";
+                unbind.title = "unbind";
+                unbind.onclick = function () { aa.unbind(b.keysym); aa.saveConfig(); renderBindings(); focusGame(); };
+                keys.appendChild(unbind);
+            });
+            var bind = document.createElement("button");
+            bind.type = "button";
+            bind.textContent = "bind";
+            bind.onclick = function () {
+                capturing = { action: a.name, player: player };
+                $("capture").value = "press a key for " + a.name;
+                $("capture").focus({ preventScroll: true }); // a focused text field keeps the key from the game
+            };
+            row.insertCell().appendChild(bind);
+        });
+    }
+    $("showAllActions").addEventListener("change", renderBindings);
+    // the capture field: the key is taken here (preventDefault: no page
+    // scrolling on Space/arrows, no browser action), the game never sees it
+    // (a focused text field), and the focus goes back to the canvas
+    $("capture").addEventListener("keydown", function (event) {
+        if (!capturing)
+            return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.code !== "Escape") {
+            if (aa.setBinding(capturing.action, capturing.player, event.code))
+                aa.saveConfig();
+            else
+                print("PAGE: cannot bind " + event.code);
+        }
+        capturing = null;
+        $("capture").value = "";
+        renderBindings();
+        focusGame();
+    });
+    $("capture").addEventListener("keyup", function (event) { event.preventDefault(); });
+    $("capture").addEventListener("blur", function () { capturing = null; $("capture").value = ""; });
+
+    focusGame();
+
+    // debug build by default, client_opt.js with ?build=opt (see the Makefile);
+    // the dist copy of this page (make dist) carries data-build="opt"
+    var build = new URLSearchParams(location.search).get("build") || document.documentElement.dataset.build;
+    var script = document.createElement("script");
+    script.src = build === "opt" ? "client_opt.js" : "client.js";
+    print("BROWSER: loading " + script.src);
+    document.body.appendChild(script);
+</script>
+</body>
+</html>

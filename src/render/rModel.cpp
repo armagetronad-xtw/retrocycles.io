@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tLocale.h"
 #include "rGL.h"
 #include <string.h>
+#include <iomanip>
 
 #define DONTDOIT
 #include "rRender.h"
@@ -65,17 +66,35 @@ void rModel::Load(std::istream &in,const char *fileName){
         REAL xmax=-1E+32f, xmin=1E+32f;
         REAL zmax=-1E+32f, zmin=1E+32f;
 
+        // explicit texture coordinates (the "vt <index> <u> <v>" extension);
+        // vertices without one get the side projection below
+        tArray<bool> hasTexVert;
+
         while (in && !in.eof()){
-            char c;
+            char word[16];
 
             REAL x,y,z;
             int A,B,C;
             int num;
 
-            in >> c;
-            switch (c){
+            word[0] = 0;
+            in >> std::setw(sizeof(word)) >> word;
+            switch (word[0]){
+            case('#'):
+                // a comment to the end of the line
+                in.ignore(1000000, '\n');
+                break;
+
             case('v'):
-                            in >> num >> x >> y >> z;
+                if (word[1] == 't')
+                {
+                    // vt <index> <u> <v>
+                    in >> num >> x >> y;
+                    texVert[num] = Vec3(x,y,0);
+                    hasTexVert[num] = true;
+                    break;
+                }
+                in >> num >> x >> y >> z;
 
                 if (x > xmax)
                     xmax = x;
@@ -103,6 +122,8 @@ void rModel::Load(std::istream &in,const char *fileName){
         int i;
         for (i = vertices.Len()-1; i>=0; i--)
 {
+            if (i < hasTexVert.Len() && hasTexVert[i])
+                continue;
             Vec3 &v = vertices[i];
             texVert[i] = Vec3((v.x[0]-xmin)/(xmax-xmin), (zmax-v.x[2])/(zmax-zmin), 0);
         }
@@ -289,7 +310,9 @@ void rModel::Render(){
 
            
 
-        if ( !modelTexFacesCoherent )
+        bool useArrays = modelTexFacesCoherent;
+
+        if ( !useArrays )
         {
             rDisplayListFiller filler( displayList_, false );
             glEnable(GL_CULL_FACE);

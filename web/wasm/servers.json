@@ -1,0 +1,4 @@
+[
+    { "name": "local test server", "url": "ws://127.0.0.1:4535/", "description": "a server on this machine" },
+    { "name": "this host", "url": "/signal", "description": "wss://<host>/signal through Caddy (web/deploy)" }
+]

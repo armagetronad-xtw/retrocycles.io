@@ -28,6 +28,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tConsole.h"
 #include "tLocale.h"
 #include <iostream>
+#ifdef __EMSCRIPTEN__
+#include "tConfiguration.h"
+#endif
 
 // anchor for the linked list of filters; filters are added automatically from the constructor.
 static tConsoleFilter* st_filterAnchor=0;
@@ -156,6 +159,26 @@ static void FilterLine( tString& line )
 
 tConsole *tConsole::s_betterConsole=NULL;
 
+#ifdef __EMSCRIPTEN__
+static tConsole::LineCallback *s_lineCallback = NULL;
+void tConsole::RegisterLineCallback(LineCallback *callback)
+{
+    s_lineCallback = callback;
+}
+
+// players see only the game's own text; diagnostics on the canvas are opt-in
+static bool st_browserConsoleLog = false;
+static tSettingItem< bool > st_browserConsoleLogConf( "BROWSER_CONSOLE_LOG", st_browserConsoleLog );
+
+void tConsole::BrowserLog(std::string const & line)
+{
+    std::cout << "BROWSER: " << line << "\n";
+    std::cout.flush();
+    if ( st_browserConsoleLog )
+        con << "BROWSER: " << line.c_str() << "\n";
+}
+#endif
+
 tConsole::~tConsole(){
     if (s_betterConsole == this)
         s_betterConsole = NULL;
@@ -179,6 +202,15 @@ void tConsole::PrintLine(tString const & line, int repetitions)
     }
     else
     {
+#ifdef __EMSCRIPTEN__
+        if (s_lineCallback)
+        {
+            int end = line.Len()-1;
+            while ( end >= 0 && ( line[end] == 0 || line[end] == '\n' ) )
+                --end;
+            (*s_lineCallback)( line.SubStr( 0, end+1 ) );
+        }
+#endif
         // print
         if (s_betterConsole)
             s_betterConsole->DoPrint( line );

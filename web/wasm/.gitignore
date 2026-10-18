@@ -1,0 +1,15 @@
+# the root .gitignore excludes every Makefile (autotools generates them) and
+# every *.html (doxygen); these are hand written and belong in git
+!Makefile
+!client.html
+
+# build output
+build/
+client.js
+client.wasm
+client.wasm.map
+client.data
+client_opt.js
+client_opt.wasm
+client_opt.data
+node_modules/

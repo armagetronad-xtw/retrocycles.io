@@ -85,6 +85,22 @@ static nSettingItem<tString> lalala_mp_floor("TEXTURE_MP_FLOOR", lala_mp_floor);
 rFileTexture ArmageTron_mp_floor(rTextureGroups::TEX_FLOOR, lala_mp_floor, 1,1);
 */
 
+/* FLOOR_STYLE 0: the stock floor textures. 1: textures/floor_tron.png in place
+   of floor.png - one grid cell with a soft line, a chamfered edge and a noise
+   panel between (textures/tools/gen_arena.py), meant for FLOOR_DETAIL 2, where
+   a single texture is tiled over the plane in both axes and can therefore carry
+   surface detail (the two texture floor of FLOOR_DETAIL 3 stretches its two
+   textures along one axis each and cannot). Only the floor texture changes;
+   the colour is still FLOOR_RED/GREEN/BLUE.
+   2: textures/floor_tron_wet.png - the same cell with the grid line at a
+   third of that brightness and more panel mottle: a dim emitter set into a
+   dark surface. */
+static int sg_floorStyle = 0;
+static tSettingItem<int> sg_floorStyleConf("FLOOR_STYLE", sg_floorStyle);
+
+static rFileTexture floor_tron(rTextureGroups::TEX_FLOOR,"textures/floor_tron.png",1,1);
+static rFileTexture floor_tron_wet(rTextureGroups::TEX_FLOOR,"textures/floor_tron_wet.png",1,1);
+
 static rFileTexture floor_a(rTextureGroups::TEX_FLOOR,"textures/floor_a.png",1,1);
 static rFileTexture floor_b(rTextureGroups::TEX_FLOOR,"textures/floor_b.png",1,1);
 static rFileTexture mp_floor_a(rTextureGroups::TEX_FLOOR,"moviepack/floor_a.png",1,1,true);
@@ -125,6 +141,10 @@ public:
     virtual void glFloorTexture(){
         if (sg_MoviePack())
             ArmageTron_mp_floor.Select();
+        else if (sg_floorStyle > 1)
+            floor_tron_wet.Select();
+        else if (sg_floorStyle > 0)
+            floor_tron.Select();
         else
             ArmageTron_floor.Select();
     }

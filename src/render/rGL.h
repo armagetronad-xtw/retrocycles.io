@@ -3,6 +3,12 @@
 
 #ifndef DEDICATED
 
+#ifdef AA_GLES2
+// fixed function GL 1.x on GLES2 (the browser client): rGLES2.h declares the
+// gl*/glu* entry points rGLES2.cpp implements, on top of GLES2/gl2.h
+#include "rGLES2.h"
+#else
+
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -10,6 +16,20 @@
 
 #define NO_SDL_GLEXT
 #include <SDL_opengl.h>
+#include <SDL_version.h>
+
+#if SDL_VERSION_ATLEAST(2,0,0)
+// SDL 1.2's SDL_opengl.h pulled GLU in, SDL2's does not. Emscripten's
+// LEGACY_GL_EMULATION implements gluPerspective/gluLookAt, the rest is guarded
+// off in the sources under __EMSCRIPTEN__.
+#ifdef MACOSX
+#include <OpenGL/glu.h>
+#else
+#include <GL/glu.h>
+#endif
+#endif
+
+#endif // AA_GLES2
 
 /*
 // include OpenGL header

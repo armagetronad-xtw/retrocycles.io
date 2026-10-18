@@ -220,7 +220,9 @@ void rSurface::Create( char const * fileName )
     tString s = tDirectories::Data().GetReadPath( fileName );
 
     // Load image
+#if !SDL_VERSION_ATLEAST(2,0,0)
     IMG_InvertAlpha(true);
+#endif
     Create( IMG_Load(s) );
 
     //if ( surface_ )

@@ -104,8 +104,10 @@ bool su_StoreSDLEvent(const SDL_Event &tEvent){
 
 #ifndef DEDICATED
 // read and write operators for keysyms
+#if !SDL_VERSION_ATLEAST(2,0,0)
 tRECORDING_ENUM( SDLKey );
 tRECORDING_ENUM( SDLMod );
+#endif
 #endif
 
 static char const * recordingSection = "INPUT";
@@ -117,7 +119,26 @@ public:
 #ifndef DEDICATED
     static void ArchiveKey( Archiver & archive, SDL_KeyboardEvent & key )
     {
+        ArchiveKeysym( archive, key );
+    }
+
+    // SDL2's scancode and mod are wider than SDL 1.2's; recordings keep the
+    // SDL 1.2 field widths so the two builds can read each other's
+    static void ArchiveKeysym( Archiver & archive, SDL_KeyboardEvent & key )
+    {
+#if SDL_VERSION_ATLEAST(2,0,0)
+        unsigned char scancode = key.keysym.scancode;
+        int sym = key.keysym.sym;
+        int mod = key.keysym.mod;
+        Uint16 unicode = sr_KeysymUnicode( key.keysym );
+        archive.Archive(key.state).Archive(scancode).Archive(sym).Archive(mod).Archive(unicode);
+        key.keysym.scancode = static_cast< SDL_Scancode >( scancode );
+        key.keysym.sym = sym;
+        key.keysym.mod = mod;
+        sr_SetKeysymUnicode( key.keysym, unicode );
+#else
         archive.Archive(key.state).Archive(key.keysym.scancode).Archive(key.keysym.sym).Archive(key.keysym.mod).Archive(key.keysym.unicode);
+#endif
     }
 #endif
 
@@ -136,6 +157,7 @@ public:
             archive.Archive(time).Archive(event.type);
             switch ( event.type )
             {
+#if !SDL_VERSION_ATLEAST(2,0,0)
             case SDL_ACTIVEEVENT:
             {
                 SDL_ActiveEvent & active = event.active;
@@ -143,6 +165,7 @@ public:
                 archive.Archive(active.gain).Archive(active.state);
             }
             break;
+#endif
             case SDL_KEYDOWN:
             case SDL_KEYUP:
             {
@@ -203,12 +226,12 @@ void EventArchiver< tRecordingBlock >::ArchiveKey( tRecordingBlock & archive, SD
         default:
             key.keysym.mod = KMOD_NONE;
             key.keysym.sym = SDLK_x;
-            key.keysym.scancode = 0;
-            key.keysym.unicode = '*';
+            key.keysym.scancode = static_cast< decltype(key.keysym.scancode) >( 0 );
+            sr_SetKeysymUnicode( key.keysym, '*' );
         }
     }
 
-    archive.Archive(key.state).Archive(key.keysym.scancode).Archive(key.keysym.sym).Archive(key.keysym.mod).Archive(key.keysym.unicode);
+    ArchiveKeysym( archive, key );
 }
 #endif
 
@@ -300,13 +323,13 @@ bool su_GetSDLInput(SDL_Event &tEvent,REAL &time){
 #ifndef DEDICATED
     // filter bogus events. Some keys cause key events with wrong keysyms.
     static unsigned short blockedScancode = 0xffff;
-    static SDLKey blockedKeysym = SDLK_LAST;
+    static SDLKey blockedKeysym = static_cast< SDLKey >( SDLK_LAST );
 
     if( tEvent.type == SDL_KEYDOWN )
     {
         // you can spot them by zero unicode; control keys are allowed to have that,
         // but not letter and number and sign keys
-        if( tEvent.key.keysym.unicode == 0 )
+        if( sr_KeysymUnicode( tEvent.key.keysym ) == 0 )
         {
             if ( tEvent.key.keysym.sym >= SDLK_ESCAPE && 
                  tEvent.key.keysym.sym <= SDLK_z )
@@ -326,7 +349,7 @@ bool su_GetSDLInput(SDL_Event &tEvent,REAL &time){
             ret = false;
 
             blockedScancode = 0xffff;
-            blockedKeysym = SDLK_LAST;
+            blockedKeysym = static_cast< SDLKey >( SDLK_LAST );
         }
     }
 #endif

@@ -461,6 +461,16 @@ int sr_maxFPS = 360;
 // for setting breakpoints in optimized mode, too
 static void breakpoint(){}
 
+#ifdef __EMSCRIPTEN__
+/* WebGL has one drawing buffer, presented when the animation frame callback
+   returns. The game clears right after every swap (Render, uMenu::Message,
+   the connect screens), which would blank the frame before the browser shows
+   it; so a clear that follows a swap is deferred to the start of the next
+   frame, where sr_BrowserFrameBegin() runs it. */
+static bool sr_browserSwapped = false;
+static bool sr_browserClearDeferred = false;
+#endif
+
 static bool sr_netSyncThreadGoOn = true;
 static rSysDep::rNetIdler * sr_netIdler = NULL;
 int sr_NetSyncThread(void *lockVoid)
@@ -515,7 +525,11 @@ void rSysDep::StartNetSyncThread( rNetIdler * idler )
         sr_netLock = SDL_CreateMutex();
 
     // start thread
+#if SDL_VERSION_ATLEAST(2,0,0)
+    sr_netSyncThread = SDL_CreateThread( sr_NetSyncThread, "netsync", sr_netLock );
+#else
     sr_netSyncThread = SDL_CreateThread( sr_NetSyncThread, sr_netLock );
+#endif
     if ( !sr_netSyncThread )
         return;
 
@@ -548,6 +562,10 @@ static tConfItem<int> sr_maxFPSConf("MAX_FPS", sr_maxFPS,
 
 void sr_LimitFPS()
 {
+#ifdef __EMSCRIPTEN__
+    // the animation frame paces the browser client; a delay here would busy wait
+    return;
+#endif
     if (sr_maxFPS > 0 && !tRecorder::IsPlayingBack())
     {
         static double last_time = 0;
@@ -662,7 +680,10 @@ void rSysDep::SwapGL(){
         break;
     }
 
-#if defined(SDL_OPENGL)
+#if SDL_VERSION_ATLEAST(2,0,0)
+    if (sr_window)
+        SDL_GL_SwapWindow(sr_window);
+#elif defined(SDL_OPENGL)
     if (lastSuccess.useSDL)
         SDL_GL_SwapBuffers();
     //#elif defined(HAVE_FXMESA)
@@ -683,6 +704,11 @@ void rSysDep::SwapGL(){
         make_screenshot();
         sr_screenshotIsPlanned=false;
     }
+
+#ifdef __EMSCRIPTEN__
+    // presented when the frame callback returns; see ClearGL
+    sr_browserSwapped = true;
+#endif
 
     sr_UnlockSDL();
     // lock mutex again
@@ -755,8 +781,27 @@ void sr_UnlockSDL(){
 }
 
 #ifndef DEDICATED
+#ifdef __EMSCRIPTEN__
+void sr_BrowserFrameBegin()
+{
+    sr_browserSwapped = false;
+    if ( sr_browserClearDeferred )
+    {
+        sr_browserClearDeferred = false;
+        rSysDep::ClearGL();
+    }
+}
+#endif
+
 void  rSysDep::ClearGL(){
     if (sr_glOut){
+#ifdef __EMSCRIPTEN__
+        if ( sr_browserSwapped )
+        {
+            sr_browserClearDeferred = true;
+            return;
+        }
+#endif
 
         /*
         if (sr_screenshotIsPlanned){

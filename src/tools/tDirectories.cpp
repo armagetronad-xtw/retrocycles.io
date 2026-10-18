@@ -1338,6 +1338,10 @@ static tString GeneratePrefix()
 {
     // fetch prefix as it was compiled in
     tString const & prefixCompiled = st_prefixCompiled;
+#ifdef __EMSCRIPTEN__
+    // the wasm module has no binary path; the data tree is preloaded at the compiled in prefix
+    return prefixCompiled;
+#endif
     // the binary path as it was compiled in
     tString const & bindirCompiled = st_bindirCompiled;
     // and the current binary path

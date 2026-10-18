@@ -53,6 +53,7 @@ public:
     static void SwapGL();
     static void ClearGL(); // not really system depentent.......
 
+
     // starting and stopping of background network processing
     class rNetIdler
     {
@@ -70,5 +71,11 @@ public:
 };
 
 extern int sr_maxFPS;
+
+#ifdef __EMSCRIPTEN__
+// runs the clear deferred from the last frame's swap (see rSysdep.cpp); the
+// browser main loop calls it first thing in every animation frame
+void sr_BrowserFrameBegin();
+#endif
 
 #endif
