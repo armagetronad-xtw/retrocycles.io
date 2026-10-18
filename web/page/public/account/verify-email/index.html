@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- The platform's verify-email email link lands here: <page>/account/verify-email?userId=..&token=..
+     (platform-contract/README.md "Email links"; a static host serves this file for the
+     directory). The play page is one page at the root, so this passes the parameters on
+     to /?account=verify-email&userId=..&token=.. (App.tsx reads and removes them) with
+     location.replace, so the token does not stay in the history. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<title>Retrocycles</title>
+<link rel="stylesheet" href="../../plain.css">
+<script src="../forward.js" data-kind="verify-email"></script>
+</head>
+<body></body>
+</html>

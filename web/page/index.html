@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-build="opt" data-resource-proxy="/resource/">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<!-- a home screen app (public/manifest.json): launched from there it has no browser bars, the
+     one way to full screen on an iPhone, whose Safari keeps the Fullscreen API to video
+     (src/fullscreen.ts) -->
+<link rel="manifest" href="./manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Retrocycles">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<!-- the tab's icon: the RC mark (public/favicon.svg; favicon.ico 16/32/48 for the rest) -->
+<link rel="icon" href="./favicon.ico" sizes="any">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<title>Retrocycles</title>
+<!-- what a posted link shows (Open Graph, the X player card), filled in by tools/social.ts -->
+<!--rc:social-->
+<!-- The wasm client's files start downloading with the page instead of after the app's
+     script, aa_api.js and client_opt.js have run one after the other (src/aa/loader.ts).
+     The runtime fetches the wasm and the data package with a same-origin fetch(), which
+     these crossorigin preloads match, so each file is downloaded once. -->
+<!-- The faces of the first screen (src/styles/faces.css), first and at full priority:
+     the wordmark's and the labels' faces wait for these rather than swapping in late. -->
+<link rel="preload" href="/fonts/armagetron.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/akshar-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/overpass-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="./client_opt.wasm" as="fetch" type="application/wasm" crossorigin fetchpriority="low">
+<link rel="preload" href="./client_opt.data" as="fetch" crossorigin fetchpriority="low">
+<link rel="preload" href="./aa_api.js" as="script">
+<link rel="preload" href="./client_opt.js" as="script">
+</head>
+<body class="is-loading">
+<!-- The game's canvas: the wasm client renders the attract scene and the game on it
+     (the shim binds its WebGL context to #canvas). It lives outside the React root so
+     that it is created once and never re-mounted. The HTML is layered over it. -->
+<canvas id="canvas" class="scene" tabindex="0"></canvas>
+<!-- The scene's opening frame, rendered by the game (public/poster/NOTICE.txt): faded in
+     as soon as it has loaded (main.tsx: no inline handlers, the Content-Security-Policy allows
+     no inline script), while the client loads; faded into the live scene when it draws
+     (App.tsx), then removed. -->
+<picture id="poster" class="poster" aria-hidden="true">
+  <source srcset="./poster/scene.avif" type="image/avif">
+  <img src="./poster/scene.webp" alt="" fetchpriority="high" decoding="async">
+</picture>
+<div id="root"></div>
+<script type="module" src="./src/main.tsx"></script>
+</body>
+</html>

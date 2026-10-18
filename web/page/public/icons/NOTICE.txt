@@ -1,0 +1,4 @@
+icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png: the home screen icons
+(../manifest.json, index.html's apple-touch-icon): the RC mark (../favicon.svg's shapes: R in
+ink, C in #00f5ff, the amber #ffb800 dot) on black, the mark 80 % of the icon's width; rendered
+with ImageMagick (2026-10-12). The maskable one has the mark inside Android's safe circle (66 %).

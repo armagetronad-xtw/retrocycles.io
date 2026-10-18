@@ -1,0 +1,1546 @@
+/* The Profile: the chip's sheet (laid out on a 1536x1024 frame, so 1px
+   of it is 1u). A full-height
+   square panel on the right edge hung from the chip, the in-game menu's grammar mirrored:
+   the player's plate on top (swatch, name, who that is), then one view at a time; home
+   leads with the level, its bar and four numbers in cells, a guest's one solid act, and
+   the lanes. Fields are square near-black wells with the cell line; whatever has the
+   focus fills near-black and shows a 4u ink bar at its left edge (the in-game menu's lanes
+   do the same; the cyan trail is the home menu's alone). Imported after
+   first-minute.css (it reuses .lane and the step keyframes). */
+
+/* ---- the home screen behind it ---------------------------------------------
+   The queue stays where it is, dimmed and out of reach, the chip lit as pressed (its line
+   brightened, never cyan); the scene recedes as behind any stage */
+body.is-profile { --scene-a: 0.4; }
+body.is-profile .frame > :not(.status):not(.rewards-duel-home) { opacity: 0.4; pointer-events: none; transition: opacity 220ms ease-out; }
+body.is-profile .status > :not(.chip) { opacity: 0.4; pointer-events: none; }
+body.is-profile .chip { border-color: var(--ink-quiet); color: var(--ink); }
+body.is-profile .docs-line { visibility: hidden; }
+/* the home menu's trail rests while the sheet is up: its menu is out of reach */
+body.is-profile .frame .trail { visibility: hidden; }
+
+/* ---- the sheet -------------------------------------------------------------- */
+
+/* the sheet sizes by the viewport's height as well as its width: it is a column as tall as
+   the screen, so on a wide, short one (1536x864, 1920x1080) the width's unit alone would push
+   the guest home and the forms past the foot. 1u is 1px of the 1536 x 1024 comp, whichever
+   way the screen runs short, never below the page's floor (0.8px) or above its ceiling */
+.pf {
+  --u: clamp(0.8px, min(0.0651vw, 0.0977vh), 1.25px);
+  position: fixed;
+  z-index: 3;
+  right: 1.9%;
+  /* hung under the chip, which keeps the page's unit */
+  top: calc(3.4vh + 54 * clamp(0.8px, 0.0651vw, 1.25px));
+  bottom: 3.7vh;
+  display: flex;
+  flex-direction: column;
+  width: calc(674 * var(--u));
+  max-width: calc(100vw - 3.8%);
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.92);
+  font-family: var(--font-label);
+  color: var(--ink);
+  /* it grows down out of the chip and goes back into it */
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 200ms cubic-bezier(0.5, 0, 0.8, 0.4);
+}
+
+.pf.is-open {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.pf[hidden] { display: none; }
+
+/* in the game ("save your progress" in the match summary) the sheet sits in the same place
+   and the game dims behind it */
+body.is-game.is-profile-game { --scene-a: 0.22; }
+
+/* ---- the plate: the player ------------------------------------------------- */
+
+.pf-plate {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(27 * var(--u));
+  padding: calc(30 * var(--u)) calc(43 * var(--u)) 0 calc(44 * var(--u));
+}
+
+.pf-swatch {
+  flex: none;
+  display: block;
+  margin-top: calc(6 * var(--u));
+  width: calc(70 * var(--u));
+  height: calc(70 * var(--u));
+  background: var(--player);
+}
+
+/* ---- the swatch's colour tray (profile/colour.tsx) -----------------------------------
+   The swatch is a press: the pointer gets a cell line 4u out round it (ink-quiet; ink while
+   the tray is open). The tray hangs 12u under it, over the body: a square panel (cell line,
+   ground 0.98), CYCLE COLOUR in quiet caps, the ten colours as 44u squares five to a row with
+   Settings' 3u bar under the one in use, then CUSTOM IN SETTINGS under a hairline. It grows
+   down out of the swatch as the sheet grows out of the chip. */
+.pf-swatch-wrap { position: relative; flex: none; }
+
+button.pf-swatch {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  outline: 1px solid transparent;
+  outline-offset: calc(4 * var(--u));
+  transition: outline-color 140ms ease-out;
+}
+button.pf-swatch:hover,
+button.pf-swatch:focus-visible { outline-color: var(--ink-quiet); }
+button.pf-swatch.is-open { outline-color: var(--ink); }
+
+.pf-tints {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 12 * var(--u));
+  left: calc(-18 * var(--u));
+  padding: calc(16 * var(--u)) calc(18 * var(--u)) calc(6 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.98);
+  animation: pf-tints-in 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes pf-tints-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+.pf-tints-key {
+  margin: 0 0 calc(14 * var(--u));
+  font-size: calc(14 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.pf-tints-grid { display: grid; grid-template-columns: repeat(5, calc(44 * var(--u))); gap: calc(18 * var(--u)) calc(10 * var(--u)); }
+
+.pf-tint {
+  position: relative;
+  width: calc(44 * var(--u));
+  height: calc(44 * var(--u));
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--cell-line);
+  border-radius: 0;
+  cursor: pointer;
+  outline: 1px solid transparent;
+  outline-offset: calc(3 * var(--u));
+  transition: outline-color 140ms ease-out;
+}
+.pf-tint:hover,
+.pf-tint:focus-visible { outline-color: var(--ink-quiet); }
+.pf-tint:focus-visible { outline-color: var(--ink); }
+
+.pf-tint.is-on::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  bottom: calc(-10 * var(--u));
+  height: calc(3 * var(--u));
+  background: var(--ink-rest);
+}
+
+.pf-tints-custom {
+  display: block;
+  width: 100%;
+  margin: calc(20 * var(--u)) 0 0;
+  padding: calc(14 * var(--u)) 0 calc(10 * var(--u));
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  cursor: pointer;
+  transition: color 140ms ease-out;
+}
+.pf-tints-custom span { color: var(--ink-quiet); transition: color 140ms ease-out; }
+.pf-tints-custom:hover,
+.pf-tints-custom:focus-visible { color: var(--ink); outline: none; }
+.pf-tints-custom:hover span,
+.pf-tints-custom:focus-visible span { color: var(--ink-rest); }
+.pf-tints-custom:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); padding-left: calc(12 * var(--u)); }
+
+@media (max-width: 760px) {
+  button.pf-swatch { outline-offset: 3px; }
+  .pf-tints { left: -10px; padding: 12px 12px 4px; }
+  .pf-tints-key { font-size: 12px; margin-bottom: 10px; }
+  .pf-tints-grid { grid-template-columns: repeat(5, 40px); gap: 16px 8px; }
+  .pf-tint { width: 40px; height: 40px; }
+  .pf-tint.is-on::after { bottom: -8px; height: 3px; }
+  .pf-tints-custom { font-size: 13px; margin-top: 16px; padding: 12px 0 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-tints { animation: none; }
+}
+
+.pf-who { flex: 1 1 auto; min-width: 0; }
+
+.pf-name-well { border-bottom: 1px solid var(--hairline); transition: border-color 140ms ease-out; }
+.pf-name-well:focus-within { border-bottom-color: var(--ink-quiet); }
+
+.pf-name {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: calc(50 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-label);
+  font-weight: 500;
+  font-size: calc(47 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  caret-color: var(--ink);
+}
+
+.pf-name:focus { outline: none; }
+
+.pf-who-say {
+  margin: calc(14 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(19 * var(--u));
+  line-height: 1.3;
+  color: var(--ink-quiet);
+  overflow-wrap: anywhere;
+}
+
+/* ---- the body: one view at a time ------------------------------------------ */
+
+.pf-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 calc(40 * var(--u)) calc(2 * var(--u));
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+/* a view replaces the last in a short fade */
+.pf-swap { animation: pf-in 220ms ease-out both; }
+
+@keyframes pf-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pf-notice {
+  margin: calc(22 * var(--u)) 0 0;
+  max-width: 52ch;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-rest);
+}
+
+.pf-notice[hidden] { display: none; }
+
+/* ---- progress: the match summary's grammar ---------------------------------- */
+
+.pf-progress { margin-top: calc(34 * var(--u)); }
+
+.pf-level {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+}
+
+.pf-level-key {
+  font-size: calc(26 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.pf-level-n {
+  font-size: calc(40 * var(--u));
+  font-weight: 600;
+  line-height: 0.85;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pf .xp-bar { width: 100%; height: calc(12 * var(--u)); margin: calc(9 * var(--u)) 0 0; }
+.pf .xp-bar-done { background: var(--ink); }
+.pf .xp-bar-rest { background: rgba(142, 156, 176, 0.24); }
+
+.pf-xp {
+  margin: calc(12 * var(--u)) 0 0;
+  text-align: right;
+  font-size: calc(21 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* the four numbers, each in a square cell with the cell line */
+.pf-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(14 * var(--u));
+  margin: calc(21 * var(--u)) calc(-7 * var(--u)) 0;
+}
+
+.pf-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--u));
+  height: calc(125 * var(--u));
+  border: 1px solid var(--cell-line);
+}
+
+.pf-stat-n {
+  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: calc(51 * var(--u));
+  font-size: calc(60 * var(--u));
+  font-weight: 500;
+  line-height: 0.85;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-stat-n.is-long { font-size: calc(46 * var(--u)); letter-spacing: 0; }
+
+.pf-stat-key {
+  font-size: calc(22 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+/* ---- the solid act and the lanes ------------------------------------------- */
+
+.pf-save { margin-top: calc(25 * var(--u)); }
+
+.pf-solid {
+  display: block;
+  width: calc(100% + 12 * var(--u));
+  height: calc(67 * var(--u));
+  margin: 0 calc(-6 * var(--u));
+  padding: 0;
+  border: 0;
+  background: var(--ink);
+  color: #000;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(30 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background-color 140ms ease-out;
+}
+
+.pf-solid:hover,
+.pf-solid:focus { background: #ffffff; outline: none; }
+
+/* the solid act is ink already: its focus bar stands just outside its left edge */
+.pf-solid { position: relative; }
+.pf-solid::before {
+  content: "";
+  position: absolute;
+  left: calc(-12 * var(--u));
+  top: 0;
+  bottom: 0;
+  width: calc(4 * var(--u));
+  background: var(--ink);
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+.pf-solid:focus::before { opacity: 1; }
+.pf-solid:disabled { cursor: default; background: var(--ink-quiet); }
+
+.pf-save-say {
+  margin: calc(25 * var(--u)) auto 0;
+  max-width: 46ch;
+  text-align: center;
+  text-wrap: balance;
+  font-family: var(--font-ui);
+  font-size: calc(19 * var(--u));
+  line-height: 1.4;
+  color: var(--ink-quiet);
+}
+
+/* an account's one-time news emails question (views.tsx NewsAsk): the sentence where a guest's
+   solid act stands, then its two answers side by side as equals, in the provider buttons' idiom
+   (the same size, ground and line), so neither is the default */
+.pf-ask { margin-top: calc(25 * var(--u)); }
+
+.pf-ask-say {
+  margin: 0;
+  max-width: 52ch;
+  text-wrap: pretty;
+  font-family: var(--font-ui);
+  font-size: calc(19 * var(--u));
+  line-height: 1.4;
+  color: var(--ink-rest);
+}
+
+.pf-ask-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(10 * var(--u));
+  margin-top: calc(16 * var(--u));
+}
+
+/* the lanes span the sheet but for a short run-in at each side */
+.pf-lanes { margin: calc(28 * var(--u)) calc(-16 * var(--u)) 0; }
+
+.lane.pf-lane { padding-left: calc(38 * var(--u)); }
+.lane.pf-lane::after { left: calc(-24 * var(--u)); right: calc(-24 * var(--u)); }
+.lane.pf-lane.lane-small { padding-left: calc(38 * var(--u)); }
+
+/* an account's home: six lanes where a guest's has three, so its places take the short
+   viewport's lane (70u at 36u) and sign out and new player the small one (54u at 24u) */
+@media (min-width: 761px) {
+  .pf-home-account .lane.pf-lane { height: calc(70 * var(--u)); font-size: calc(36 * var(--u)); }
+  .pf-home-account .lane.pf-lane.lane-small { height: calc(54 * var(--u)); font-size: calc(24 * var(--u)); }
+}
+@media (min-width: 761px) and (max-height: 860px) {
+  .pf-home-account .pf-lanes { margin-top: calc(14 * var(--u)); }
+}
+/* while the news emails question is up (once per account), the places' lanes give it the room,
+   so the home still fits without scrolling */
+@media (min-width: 761px) {
+  .pf-home-account:has(.pf-ask) .pf-lanes { margin-top: calc(16 * var(--u)); }
+  .pf-home-account:has(.pf-ask) .lane.pf-lane:not(.lane-small) { height: calc(62 * var(--u)); font-size: calc(34 * var(--u)); }
+}
+@media (min-width: 761px) and (max-height: 860px) {
+  .pf-home-account:has(.pf-ask) .pf-lanes { margin-top: calc(8 * var(--u)); }
+}
+@media (max-width: 760px) {
+  .pf-home-account:has(.pf-ask) .pf-lanes { margin-top: 12px; }
+  .pf-home-account:has(.pf-ask) .lane.pf-lane:not(.lane-small) { height: 50px; }
+}
+
+.pf-lane-note {
+  margin-left: auto;
+  font-size: calc(17 * var(--u));
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ink-quiet);
+}
+
+/* the foot: what Esc does here, which the pointer can also press */
+.pf-foot {
+  flex: none;
+  text-align: left;
+  margin: 0;
+  padding: calc(10 * var(--u)) calc(16 * var(--u)) calc(30 * var(--u)) calc(38 * var(--u));
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(22 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.pf-foot-key { margin-right: calc(6 * var(--u)); font-weight: 600; color: var(--ink); }
+.pf-foot:hover { color: var(--ink-rest); }
+
+/* with no foot (a sheet's home: Esc closes, and that is the head's cell), the body keeps the
+   foot's air off the bottom line */
+.pf-body:last-child { padding-bottom: calc(30 * var(--u)); }
+
+/* ---- the close cell (SheetClose.tsx): the key and the cross at the head's right end ---------
+   A square cell like the status cells, as tall as the name's well; the cross is the icon set's.
+   Hover lights it as a provider button lights (line and ground), with the focus bar inset. A
+   press outside the sheet that has to keep it up (words typed in a form) flashes it to ink. */
+.sheet-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  height: calc(50 * var(--u));
+  margin: 0 0 0 auto;
+  padding: 0 calc(12 * var(--u)) 0 calc(16 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.6);
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  cursor: pointer;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out, color 140ms ease-out;
+}
+
+.sheet-x-key { color: var(--ink-quiet); transition: color 140ms ease-out; }
+.sheet-x-icon { display: block; width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
+
+.sheet-x:hover,
+.sheet-x:focus-visible,
+.pf[data-nudge] .sheet-x { border-color: var(--ink-quiet); background: rgba(14, 18, 25, 0.98); color: var(--ink); outline: none; }
+.sheet-x:hover .sheet-x-key,
+.sheet-x:focus-visible .sheet-x-key,
+.pf[data-nudge] .sheet-x-key { color: var(--ink-rest); }
+.sheet-x:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.pf[data-nudge] .sheet-x { border-color: var(--ink); transition-duration: 60ms; }
+
+@media (max-width: 760px) {
+  .sheet-x { height: 40px; gap: 8px; padding: 0 8px 0 10px; font-size: 12px; }
+  .sheet-x-icon { width: 20px; height: 20px; }
+  .pf-body:last-child { padding-bottom: 18px; }
+}
+
+/* ---- a view's head and its sentences ---------------------------------------- */
+
+.pf-head {
+  margin: calc(24 * var(--u)) 0 calc(16 * var(--u));
+  padding-bottom: calc(14 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pf-title {
+  margin: 0;
+  font-size: calc(32 * var(--u));
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  overflow-wrap: anywhere;
+}
+
+.pf-say {
+  margin: calc(10 * var(--u)) 0 0;
+  max-width: 52ch;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+
+.pf-head .pf-say { margin-top: calc(12 * var(--u)); }
+
+/* the title, and at its right the way to the other form (a row's act) */
+.pf-head-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: calc(16 * var(--u));
+}
+
+.pf-head-line > .pf-row-act {
+  margin-left: auto; /* wrapped under a long title, it keeps to the right */
+  margin-right: calc(-12 * var(--u));
+  padding: calc(8 * var(--u)) calc(12 * var(--u)) calc(8 * var(--u)) calc(16 * var(--u));
+}
+
+/* standing alone, a row's act carries the focus bar itself */
+.pf-head-line > .pf-row-act:focus,
+.pf-well > .pf-row-act:focus { background: rgba(4, 6, 9, 0.96); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+/* read out, not shown (FORGOT? says "forgot password") */
+.pf-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- fields: square wells ---------------------------------------------------- */
+
+.pf-field,
+.pf-check { margin: 0 0 calc(12 * var(--u)); }
+
+.pf-key {
+  display: block;
+  margin: 0 0 calc(9 * var(--u));
+  font-size: calc(17 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  transition: color 140ms ease-out;
+}
+
+.pf-field:focus-within .pf-key { color: var(--ink); }
+
+.pf-well,
+.pf-check-row {
+  display: flex;
+  align-items: center;
+  height: calc(56 * var(--u));
+  padding: 0 calc(20 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  transition: border-color 140ms ease-out;
+}
+
+/* the focus: the well's line brightens and a 4u ink bar shows at its left edge, the lanes' mark */
+.pf-well:focus-within,
+.pf-check-row:focus-within { border-color: var(--ink-quiet); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.pf-field.is-invalid .pf-well,
+.pf-check.is-invalid .pf-check-row { border-color: var(--ink-rest); }
+
+.pf-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-label);
+  font-size: calc(26 * var(--u));
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  caret-color: var(--ink);
+}
+
+.pf-input:focus { outline: none; }
+.pf-well:not(.pf-check-row) { cursor: text; }
+
+/* a well's own act at its right end (the password's FORGOT?): the well keeps its brightened
+   line while the act has the focus, and the bar moves to the act */
+.pf-well > .pf-row-act {
+  flex: none;
+  align-self: stretch;
+  margin: 0 calc(-20 * var(--u)) 0 calc(12 * var(--u));
+  padding: 0 calc(20 * var(--u)) 0 calc(18 * var(--u));
+}
+
+.pf-well:has(> .pf-row-act:focus) { box-shadow: none; }
+
+/* the handle: the typed part, then @authority in quiet ink right after it */
+.pf-well:has(.pf-suffix) .pf-input { flex: 0 0 auto; max-width: 100%; }
+@supports (field-sizing: content) {
+  .pf-well:has(.pf-suffix) .pf-input { field-sizing: content; width: auto !important; min-width: 1ch; }
+}
+.pf-suffix { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(26 * var(--u)); letter-spacing: 0.02em; color: var(--ink-quiet); }
+/* empty and not being typed in, the well looks like any empty well: the suffix alone would
+   float mid-well, where the text starts; it comes back after the caret with the focus */
+.pf-field.is-empty .pf-well:not(:focus-within) .pf-suffix { visibility: hidden; }
+
+/* the browser's autofill keeps the well's ground */
+.pf-input:-webkit-autofill,
+.pf-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 100px #040609 inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+}
+
+.pf-hint {
+  margin: calc(9 * var(--u)) 0 0;
+  max-width: 58ch;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+
+/* a checkbox: no well (it is not a field), a square cell at the left and the sentence after it;
+   checked, the cell fills with ink and shows its tick in the ground; focused like any row of
+   the sheet: the near-black fill and the 4u ink bar */
+.pf-check-row {
+  position: relative;
+  gap: calc(16 * var(--u));
+  border-color: transparent;
+  background: none;
+  cursor: pointer;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+}
+.pf-check-row:focus-within { background: rgba(4, 6, 9, 0.96); border-color: transparent; }
+.pf-check.is-invalid .pf-check-row { border-color: transparent; }
+
+.pf-check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pf-check-box {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: calc(26 * var(--u));
+  height: calc(26 * var(--u));
+  border: 1px solid var(--ink-quiet);
+  background: rgba(4, 6, 9, 0.96);
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+}
+.pf-check-box svg {
+  width: 78%;
+  height: 78%;
+  fill: none;
+  stroke: #040609;
+  stroke-width: 2.4;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  visibility: hidden;
+}
+.pf-check-row:hover .pf-check-box,
+.pf-check-row:focus-within .pf-check-box,
+.pf-check.is-invalid .pf-check-box { border-color: var(--ink); }
+.pf-check.is-checked .pf-check-box { border-color: var(--ink); background: var(--ink); }
+.pf-check.is-checked .pf-check-box svg { visibility: visible; }
+
+.pf-check-key {
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: calc(21 * var(--u));
+  line-height: 1.25;
+  color: var(--ink-rest);
+}
+.pf-check-key::first-letter { text-transform: uppercase; }
+.pf-check.is-checked .pf-check-key,
+.pf-check-row:hover .pf-check-key,
+.pf-check-row:focus-within .pf-check-key { color: var(--ink); }
+
+/* a failure: the reversed cell, square, black on the failed red */
+.pf .cell {
+  margin: calc(10 * var(--u)) 0 0;
+  font-family: var(--font-label);
+  font-size: calc(17 * var(--u));
+  text-transform: none;
+  background: var(--failed);
+}
+
+.pf .pf-cell-block { display: table; margin: calc(16 * var(--u)) 0 0; }
+
+.pf-form .pf-solid { margin-top: calc(14 * var(--u)); }
+/* a form keeps its act in reach (and the sign-up its terms with it): it sticks to the
+   body's foot until the form's end scrolls up to it (never a half-cut bar at the edge,
+   never the act without the sentence it agrees to) */
+.pf-commit {
+  position: sticky;
+  z-index: 1;
+  bottom: calc(-2 * var(--u)); /* past the body's bottom padding, so nothing scrolls under it */
+  margin: 0 calc(-40 * var(--u));
+  padding: calc(8 * var(--u)) calc(40 * var(--u)) calc(12 * var(--u));
+  background: rgb(9, 12, 17);
+}
+
+.pf-commit .pf-consent { margin-top: calc(6 * var(--u)); }
+.pf-commit > .pf-solid:first-child { margin-top: 0; }
+@media (max-width: 760px) {
+  .pf-commit { bottom: -6px; margin: 0 -18px; padding: 10px 18px 14px; }
+}
+.pf-form .pf-lanes { margin-top: calc(12 * var(--u)); }
+
+/* a form's rhythm: one step tighter than a view of rows, so sign up fits the sheet */
+.pf-form .pf-head { margin: calc(18 * var(--u)) 0 calc(14 * var(--u)); padding-bottom: calc(12 * var(--u)); }
+.pf-form .pf-field,
+.pf-form .pf-check { margin-bottom: calc(10 * var(--u)); }
+.pf-form .pf-or { margin: calc(12 * var(--u)) 0; }
+.pf-form .pf-commit { padding-top: calc(6 * var(--u)); padding-bottom: calc(8 * var(--u)); }
+
+/* a short desktop viewport (1280x720 and the like): shallower wells and buttons */
+@media (min-width: 761px) and (max-height: 860px) {
+  .pf-form .pf-head { margin-top: calc(14 * var(--u)); }
+  .pf-form .pf-head .pf-say { margin-top: calc(8 * var(--u)); }
+  .pf-form .pf-well,
+  .pf-form .pf-check-row,
+  .pf-form .pf-provider { height: calc(50 * var(--u)); }
+  .pf-form .pf-hint { margin-top: calc(6 * var(--u)); }
+  .pf-form .pf-or { margin: calc(10 * var(--u)) 0; }
+}
+.pf-form .lane.pf-lane.lane-small { height: calc(48 * var(--u)); }
+.pf-view > .pf-solid { margin-top: calc(26 * var(--u)); }
+
+.pf-consent {
+  margin: calc(10 * var(--u)) 0 0;
+  max-width: 58ch;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+
+.pf-consent a,
+.pf-hint a {
+  color: var(--ink-rest);
+  text-decoration: underline;
+  text-decoration-color: var(--cell-line);
+  text-underline-offset: 0.2em;
+}
+
+.pf-consent a:hover,
+.pf-hint a:hover,
+.pf-consent a:focus-visible,
+.pf-hint a:focus-visible { color: var(--ink); text-decoration-color: var(--ink); }
+
+.pf-waiting { margin-top: calc(16 * var(--u)); }
+
+/* the providers, as every sign-in screen offers them: "Continue with ..." buttons side by
+   side (one across the width when there is one, a new row past what fits), the provider's
+   own mark before the label (brands.tsx), both centred on the button; the page's dark
+   ground and cell line, so the marks are the only colour. Then OR between hairlines, then
+   the email form */
+.pf-providers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(240 * var(--u))), 1fr));
+  gap: calc(10 * var(--u));
+  margin: calc(4 * var(--u)) 0 0;
+}
+
+.pf-provider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(12 * var(--u));
+  min-width: 0;
+  height: calc(56 * var(--u));
+  margin: 0;
+  padding: 0 calc(14 * var(--u));
+  container-type: inline-size;
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(24 * var(--u));
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.pf-provider-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* too narrow for the whole label (a phone's half width): the name alone, still read out whole */
+@container (max-width: 215px) {
+  .pf-provider-with {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+.pf-brand {
+  flex: none;
+  width: calc(26 * var(--u));
+  height: calc(26 * var(--u));
+}
+
+.pf-provider:hover,
+.pf-provider:focus { border-color: var(--ink-quiet); background: rgba(14, 18, 25, 0.98); outline: none; }
+.pf-provider:focus { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.pf-provider:disabled { cursor: default; color: var(--ink-quiet); }
+.pf-provider:disabled .pf-brand { opacity: 0.5; }
+
+.pf-providers + .pf-consent { margin-top: calc(10 * var(--u)); }
+
+/* OR between hairlines */
+.pf-or {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  margin: calc(16 * var(--u)) 0;
+  font-size: calc(16 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.pf-or::before,
+.pf-or::after { content: ""; flex: 1 1 0; height: 1px; background: var(--hairline); }
+
+/* ---- rows: key | value | the row's action ---------------------------------- */
+
+.pf-rows { margin: 0; }
+
+.pf-row {
+  display: grid;
+  grid-template-columns: calc(150 * var(--u)) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: calc(16 * var(--u));
+  min-height: calc(60 * var(--u));
+  padding: calc(6 * var(--u)) calc(10 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pf-row-key {
+  font-size: calc(18 * var(--u));
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.pf-row-val {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: calc(12 * var(--u));
+}
+
+.pf-row-text { font-size: calc(24 * var(--u)); line-height: 1.2; color: var(--ink); overflow-wrap: anywhere; }
+.pf-none { font-size: calc(24 * var(--u)); color: var(--ink-quiet); }
+
+.pf-row-note {
+  font-size: calc(16 * var(--u));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.pf-row-end { margin: 0; justify-self: end; }
+
+.pf-row-act {
+  margin: 0;
+  padding: calc(8 * var(--u)) 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(18 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  white-space: nowrap;
+  transition: color 140ms ease-out;
+}
+
+.pf-row-act:hover,
+.pf-row-act:focus { color: var(--ink); outline: none; }
+
+/* a row whose action has the focus: the lane's mark, ground and bar */
+.pf-row:focus-within,
+.pf-session:focus-within { background: rgba(4, 6, 9, 0.96); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.pf-row-act:disabled { cursor: default; color: var(--ink-quiet); }
+
+/* sessions: the browser, when it was last used, its sign-out */
+.pf-sessions { margin: 0; padding: 0; list-style: none; }
+
+.pf-session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: calc(16 * var(--u));
+  row-gap: calc(6 * var(--u));
+  padding: calc(14 * var(--u)) calc(10 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pf-session-device { grid-column: 1; font-size: calc(24 * var(--u)); line-height: 1.1; color: var(--ink-rest); }
+.pf-session.is-current .pf-session-device { color: var(--ink); }
+.pf-session-say { grid-column: 1; font-family: var(--font-ui); font-size: calc(15 * var(--u)); line-height: 1.4; color: var(--ink-quiet); }
+.pf-session .pf-row-end { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+/* Linked IDs: the code to type in game */
+.pf-code-block { margin: calc(26 * var(--u)) 0 0; }
+
+.pf-code {
+  margin: 0 0 calc(14 * var(--u));
+  font-size: calc(72 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+/* a game password: 19 characters, shown once */
+.pf-code.is-long { font-size: calc(40 * var(--u)); letter-spacing: 0.06em; overflow-wrap: anywhere; }
+
+.pf-command { color: var(--ink); white-space: nowrap; }
+
+/* ---- short desktop viewports (1280x720 and the like): the same sheet, a tighter rhythm,
+   so a home still fits without scrolling ------------------------------------- */
+
+@media (min-width: 761px) and (max-height: 860px) {
+  .pf-plate { padding-top: calc(22 * var(--u)); }
+  .pf-swatch { width: calc(60 * var(--u)); height: calc(60 * var(--u)); margin-top: calc(4 * var(--u)); }
+  .pf-name { height: calc(44 * var(--u)); font-size: calc(46 * var(--u)); }
+  .pf-who-say { margin-top: calc(10 * var(--u)); }
+  .pf-progress { margin-top: calc(22 * var(--u)); }
+  .pf-xp { margin-top: calc(8 * var(--u)); }
+  .pf-stats { margin-top: calc(14 * var(--u)); }
+  .pf-stat { height: calc(92 * var(--u)); gap: calc(6 * var(--u)); }
+  .pf-stat-n { font-size: calc(48 * var(--u)); height: calc(41 * var(--u)); }
+  .pf-stat-n.is-long { font-size: calc(38 * var(--u)); }
+  .pf-save { margin-top: calc(18 * var(--u)); }
+  .pf-solid { height: calc(60 * var(--u)); }
+  .pf-save-say { margin-top: calc(10 * var(--u)); }
+  .pf-ask { margin-top: calc(14 * var(--u)); }
+  .pf-ask-say { font-size: calc(17 * var(--u)); }
+  .pf-ask-acts { margin-top: calc(12 * var(--u)); }
+  .pf-ask-acts .pf-provider { height: calc(50 * var(--u)); }
+  .pf-lanes { margin-top: calc(18 * var(--u)); }
+  .lane.pf-lane { height: calc(70 * var(--u)); font-size: calc(36 * var(--u)); }
+  .lane.pf-lane.lane-small { height: calc(54 * var(--u)); font-size: calc(24 * var(--u)); }
+  .pf-foot { padding-top: calc(10 * var(--u)); padding-bottom: calc(24 * var(--u)); }
+  .pf-head { margin-top: calc(28 * var(--u)); }
+}
+
+/* ---- under 760 px: the sheet under the full-width status bar ----------------- */
+
+@media (max-width: 760px) {
+  body.is-profile .frame > :not(.status):not(.rewards-duel-home) { opacity: 0; }
+  .pf { left: 6%; right: 6%; width: auto; max-width: none; top: calc(12vh + 52px); bottom: 2vh; background: rgba(8, 11, 16, 0.97); }
+  .pf-plate { gap: 14px; padding: 20px 18px 0; }
+  .pf-swatch { width: 40px; height: 40px; }
+  .pf-name { font-size: 28px; }
+  .pf-who-say { font-size: 14px; }
+  .pf-body { padding: 0 18px 6px; }
+  .pf-progress { margin-top: 22px; }
+  .pf-level-key { font-size: 16px; }
+  .pf-level-n { font-size: 24px; }
+  .pf-xp { font-size: 13px; }
+  .pf-stats { gap: 8px; margin: 14px 0 0; }
+  .pf-stat { height: 70px; gap: 6px; }
+  .pf-stat-n { font-size: 28px; height: 24px; }
+  .pf-stat-n.is-long { font-size: 20px; }
+  .pf-stat-key { font-size: 12px; }
+  .pf-solid { height: 50px; font-size: 18px; }
+  .pf-save-say { font-size: 14px; }
+  .pf-ask { margin-top: 10px; }
+  .pf-ask-say { font-size: 14px; }
+  .pf-ask-acts { gap: 8px; margin-top: 8px; }
+  .pf-lanes { margin: 20px -12px 0; }
+  .lane.pf-lane,
+  .lane.pf-lane.lane-small { padding-left: 24px; }
+  .lane.pf-lane::after { left: -6px; right: -6px; }
+  .lane.pf-lane.lane-small { height: 46px; font-size: 18px; }
+  .pf-foot { padding: 16px 12px 18px 18px; font-size: 14px; }
+  .pf-title { font-size: 22px; }
+  .pf-say,
+  .pf-notice { font-size: 14px; }
+  .pf-well,
+  .pf-check-row { height: 48px; padding: 0 14px; }
+  .pf-input,
+  .pf-suffix { font-size: 18px; }
+  .pf-check-key { font-size: 16px; }
+  .pf-check-box { width: 22px; height: 22px; }
+  .pf-key { font-size: 13px; }
+  .pf-hint,
+  .pf-consent { font-size: 13px; }
+  .pf-providers { grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 8px; }
+  .pf-provider { height: 46px; padding: 0 10px; gap: 10px; font-size: 16px; }
+  .pf-brand { width: 20px; height: 20px; }
+  .pf-or { margin: 12px 0; font-size: 12px; }
+  .pf-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .pf-row-key { grid-column: 1 / -1; font-size: 12px; }
+  .pf-row-text,
+  .pf-none { font-size: 17px; }
+  .pf-row-act { font-size: 13px; }
+  .pf-session-device { font-size: 17px; }
+  .pf-code { font-size: 44px; }
+  .pf-code.is-long { font-size: 28px; }
+}
+
+/* sentences: no last word left alone on its line */
+.pf-say,
+.pf-hint,
+.pf-notice,
+.pf-consent,
+.pf-who-say { text-wrap: pretty; }
+
+/* a body that scrolls: while there is more below (Profile.tsx sets data-more) a hairline
+   above the foot marks the edge, so the cut reads as an edge and nothing is dimmed */
+.pf:has(.pf-body[data-more]) .pf-foot { box-shadow: inset 0 1px 0 var(--hairline); }
+
+/* a field's key sits inside its well at the left, as the yes/no rows' does */
+.pf-well > .pf-key {
+  flex: none;
+  width: calc(176 * var(--u));
+  margin: 0 calc(12 * var(--u)) 0 0;
+  cursor: text;
+}
+
+.pf-well:focus-within > .pf-key { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .pf-well > .pf-key { width: 118px; margin-right: 8px; }
+}
+
+/* ---- the Friends panel -------------------------------------
+   Its own sheet from its own status cell, in this sheet's grammar: the same square panel at
+   the right edge (it shares .pf), the rows, lanes and solid act. Its plate is a title and a
+   count instead of the player's name; the home screen dims behind it as behind the Profile,
+   its cell lit as pressed instead of the chip. */
+
+body.is-friends { --scene-a: 0.4; }
+body.is-friends .frame > :not(.status):not(.rewards-duel-home) { opacity: 0.4; pointer-events: none; transition: opacity 220ms ease-out; }
+body.is-friends .status > :not(.fr-cell) { opacity: 0.4; pointer-events: none; }
+body.is-friends .fr-cell { border-color: var(--ink-quiet); color: var(--ink); }
+body.is-friends .docs-line { visibility: hidden; }
+body.is-friends .frame .trail { visibility: hidden; }
+
+.fr-plate { padding-bottom: calc(4 * var(--u)); }
+
+.fr-title {
+  margin: 0;
+  padding-bottom: calc(10 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font-label);
+  font-weight: 500;
+  font-size: calc(47 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* a row's two acts (ACCEPT DECLINE) side by side */
+.fr-acts { display: inline-flex; gap: calc(22 * var(--u)); }
+
+/* the cell's count of requests waits for an answer */
+.fr-cell .status-count { color: var(--waiting); }
+
+@media (max-width: 760px) {
+  body.is-friends .frame > :not(.status):not(.rewards-duel-home) { opacity: 0; }
+  .fr-title { font-size: 28px; padding-bottom: 8px; }
+  .fr-acts { gap: 14px; }
+}
+
+/* ---- the Friends panel's layout -----------------------------------------
+   As social game clients lay theirs out: + ADD in the plate beside the close cell, a you line
+   with your status as a cell and its tray, the tabs (FRIENDS, REQUESTS, BLOCKED), a compact row
+   per friend whose quick acts are JOIN and MESSAGE, the row itself opening the friend's card. */
+
+/* + ADD: the close cell's idiom, the icon set's plus before the word; lit while the add view is up */
+.fr-add-cell { gap: calc(8 * var(--u)); font-size: calc(15 * var(--u)); }
+.fr-add-cell + .sheet-x { margin-left: calc(10 * var(--u)); }
+/* the plate's one inverted cell: ink ground, black words, so + ADD reads first
+   and the close cell beside it stays quiet; white on hover or focus, as the solid act */
+.sheet-x.fr-add-cell { border-color: var(--ink); background: var(--ink); color: #000; font-weight: 600; }
+.sheet-x.fr-add-cell:hover,
+.sheet-x.fr-add-cell:focus-visible,
+.sheet-x.fr-add-cell.is-on { border-color: #fff; background: #fff; color: #000; }
+.sheet-x.fr-add-cell:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 #000; }
+
+/* the you line: your swatch, your name, your status cell at the right, a hairline under it */
+.fr-you {
+  flex: none;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  margin: calc(16 * var(--u)) calc(40 * var(--u)) 0;
+  padding: 0 0 calc(14 * var(--u)) calc(10 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.fr-swatch {
+  flex: none;
+  width: calc(18 * var(--u));
+  height: calc(18 * var(--u));
+  box-sizing: border-box;
+  border: 1px solid var(--cell-line);
+}
+
+.fr-you-swatch { width: calc(26 * var(--u)); height: calc(26 * var(--u)); background: var(--player); }
+
+.fr-you-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(24 * var(--u));
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+/* the status cell: a status cell's line and ground; a square, filled ink when online and hollow
+   when appearing offline (no colour: the trail is the one accent), the word, a chevron */
+.fr-status-wrap { position: relative; flex: none; }
+
+.fr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  height: calc(42 * var(--u));
+  margin: 0;
+  padding: 0 calc(10 * var(--u)) 0 calc(14 * var(--u));
+  border: 1px solid var(--cell-line);
+  border-radius: 0;
+  background: rgba(8, 11, 16, 0.6);
+  font-family: var(--font-label);
+  font-size: calc(16 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  cursor: pointer;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out, color 140ms ease-out;
+}
+
+.fr-status:hover,
+.fr-status:focus-visible,
+.fr-status.is-open { border-color: var(--ink-quiet); background: rgba(14, 18, 25, 0.98); color: var(--ink); outline: none; }
+.fr-status:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.fr-status-chev { display: block; width: calc(18 * var(--u)); height: calc(18 * var(--u)); transition: transform 160ms ease-out; }
+.fr-status.is-open .fr-status-chev { transform: rotate(180deg); }
+
+.fr-dot {
+  flex: none;
+  display: block;
+  width: calc(10 * var(--u));
+  height: calc(10 * var(--u));
+  box-sizing: border-box;
+  border: calc(2 * var(--u)) solid var(--ink);
+  background: var(--ink);
+}
+.fr-status:not(.is-away) > .fr-dot,
+.fr-status-opt:not(.is-away) > .fr-dot { border-color: var(--online); background: var(--online); }
+.is-away > .fr-dot { background: transparent; border-color: var(--ink-quiet); }
+
+/* an online friend: the presence square before where they are, on the row and the card */
+.fr-friend.is-online .fr-where::before,
+.fr-card-where.is-online::before {
+  content: "";
+  display: inline-block;
+  width: calc(8 * var(--u));
+  height: calc(8 * var(--u));
+  margin-right: calc(8 * var(--u));
+  vertical-align: calc(1 * var(--u));
+  background: var(--online);
+}
+
+/* the tray: hung under the cell at its right edge, over the tabs and the list (the colour tray's
+   panel); the two statuses as a radio group, then the two switches under a hairline */
+.fr-status-tray {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 10 * var(--u));
+  right: 0;
+  width: calc(400 * var(--u));
+  padding: calc(8 * var(--u)) 0;
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.98);
+  animation: pf-tints-in 160ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.fr-status-opt,
+.fr-switch {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--font-label);
+  cursor: pointer;
+  transition: background-color 140ms ease-out;
+}
+
+.fr-status-opt { gap: calc(14 * var(--u)); padding: calc(12 * var(--u)) calc(18 * var(--u)); }
+.fr-status-opt > .fr-dot { align-self: flex-start; margin-top: calc(5 * var(--u)); }
+
+.fr-status-opt-text {
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--u));
+  font-size: calc(19 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+.fr-status-opt.is-on .fr-status-opt-text { font-weight: 600; color: var(--ink); }
+
+.fr-status-opt-say,
+.fr-switch-say {
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-quiet);
+}
+
+.fr-status-switches { margin-top: calc(6 * var(--u)); padding-top: calc(6 * var(--u)); border-top: 1px solid var(--hairline); }
+
+.fr-switch { justify-content: space-between; gap: calc(16 * var(--u)); padding: calc(12 * var(--u)) calc(18 * var(--u)); }
+.fr-switch-text { display: flex; flex-direction: column; gap: calc(6 * var(--u)); min-width: 0; }
+.fr-switch-key { font-size: calc(16 * var(--u)); line-height: 1; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-rest); }
+
+.fr-switch-val { flex: none; display: inline-flex; gap: calc(14 * var(--u)); font-size: calc(17 * var(--u)); font-weight: 600; line-height: 1; letter-spacing: 0.08em; text-transform: uppercase; }
+.fr-switch-no,
+.fr-switch-yes { color: var(--ink-quiet); opacity: 0.55; transition: color 140ms ease-out, opacity 140ms ease-out; }
+.fr-switch:not(.is-on) .fr-switch-no { color: var(--ink-rest); opacity: 1; }
+.fr-switch.is-on .fr-switch-yes { color: var(--ink); opacity: 1; }
+.fr-switch:disabled { cursor: default; }
+
+.fr-status-opt:hover,
+.fr-status-opt:focus-visible,
+.fr-switch:hover,
+.fr-switch:focus-visible { background: rgba(4, 6, 9, 0.96); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); outline: none; }
+.fr-switch:hover .fr-switch-key,
+.fr-switch:focus-visible .fr-switch-key { color: var(--ink); }
+
+/* the tabs: Settings' tab row (18u caps, the open one ink 600 on a 2u ink rule); a tab's count
+   follows it, quiet, and the requests waiting for an answer in ink */
+.fr-tabs {
+  flex: none;
+  display: flex;
+  gap: calc(28 * var(--u));
+  margin: calc(20 * var(--u)) calc(40 * var(--u)) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.fr-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(8 * var(--u));
+  margin: 0;
+  padding: calc(4 * var(--u)) 0 calc(14 * var(--u));
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(18 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  white-space: nowrap;
+  transition: color 140ms ease-out;
+}
+
+.fr-tab:hover,
+.fr-tab:focus-visible { color: var(--ink-rest); outline: none; }
+.fr-tab.is-on { color: var(--ink); font-weight: 600; }
+.fr-tab.is-on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: calc(2 * var(--u)); background: var(--ink); }
+.fr-tab:focus-visible::before { content: ""; position: absolute; left: calc(-10 * var(--u)); top: 0; bottom: calc(10 * var(--u)); width: calc(3 * var(--u)); background: var(--ink); }
+
+.fr-tab-n { font-size: calc(15 * var(--u)); font-weight: 400; letter-spacing: 0.04em; color: var(--ink-quiet); font-variant-numeric: tabular-nums; }
+.fr-tab-n.is-ask { font-weight: 600; color: var(--waiting); }
+
+/* a section's head: Settings' group head (quiet caps over a hairline), its count in ink-rest */
+.fr-section + .fr-section { margin-top: calc(10 * var(--u)); }
+
+.fr-section-head {
+  margin: calc(22 * var(--u)) 0 0;
+  padding: 0 0 calc(10 * var(--u)) calc(10 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+  font-size: calc(16 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.fr-section-head .fr-count { margin-left: calc(6 * var(--u)); color: var(--ink-rest); }
+.fr-section-say { margin: calc(10 * var(--u)) 0 calc(4 * var(--u)) calc(10 * var(--u)); }
+
+.fr-none { margin: 0; padding: calc(14 * var(--u)) calc(10 * var(--u)); font-family: var(--font-ui); font-size: calc(17 * var(--u)); color: var(--ink-quiet); }
+
+/* a friend's row: the row is the press that opens their card (swatch, name, level, where); the
+   quick acts sit at its right; focused, the Focus Bar Rule (ground and the 4u ink bar) */
+.fr-list { margin: 0; padding: 0; list-style: none; }
+
+.fr-friend {
+  display: flex;
+  align-items: center;
+  min-height: calc(72 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+  transition: background-color 140ms ease-out;
+}
+
+.fr-friend:focus-within { background: rgba(4, 6, 9, 0.96); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+.fr-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  align-self: stretch;
+  margin: 0;
+  padding: calc(10 * var(--u)) calc(10 * var(--u)) calc(10 * var(--u)) calc(18 * var(--u));
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--font-label);
+  color: inherit;
+  cursor: pointer;
+}
+.fr-open:focus { outline: none; }
+
+.fr-who { display: flex; flex-direction: column; gap: calc(6 * var(--u)); min-width: 0; }
+
+.fr-name {
+  display: flex;
+  align-items: baseline;
+  gap: calc(10 * var(--u));
+  min-width: 0;
+  font-size: calc(24 * var(--u));
+  line-height: 1.1;
+  color: var(--ink-rest);
+  overflow-wrap: anywhere;
+  transition: color 140ms ease-out;
+}
+
+.fr-friend.is-online .fr-name,
+.fr-friend:focus-within .fr-name { color: var(--ink); }
+.fr-friend:not(.is-online) .fr-swatch { opacity: 0.5; }
+
+.fr-level { flex: none; font-size: calc(14 * var(--u)); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-quiet); }
+.fr-where { font-size: calc(15 * var(--u)); }
+.fr-friend[data-state="playing"] .fr-where,
+.fr-friend[data-state="spectating"] .fr-where { color: var(--ink-rest); }
+
+.fr-quick { flex: none; display: inline-flex; align-items: center; gap: calc(18 * var(--u)); padding: 0 calc(10 * var(--u)) 0 calc(6 * var(--u)); }
+.fr-quick .pf-row-act { color: var(--ink); font-weight: 600; }
+
+.fr-msg-act {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  height: calc(40 * var(--u));
+  margin: 0;
+  padding: 0 calc(6 * var(--u));
+  border: 0;
+  background: none;
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-quiet);
+  cursor: pointer;
+  transition: color 140ms ease-out;
+}
+.fr-msg-icon { display: block; width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
+.fr-msg-act.has-new { color: var(--ink); }
+.fr-msg-count { color: var(--waiting); }
+.fr-card .pf-lane-note { color: var(--waiting); }
+.fr-msg-act:hover,
+.fr-msg-act:focus { color: var(--ink); outline: none; }
+.fr-msg-act:focus-visible { box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--ink); }
+.fr-msg-act:disabled { cursor: default; opacity: 0.5; }
+
+/* an empty tab: what it is for in one line, and the way to fill it */
+.fr-empty { margin-top: calc(30 * var(--u)); }
+.fr-empty-say { margin: 0 0 calc(10 * var(--u)); font-size: calc(32 * var(--u)); line-height: 1.1; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-rest); }
+.fr-empty .pf-solid { margin-top: calc(24 * var(--u)); }
+
+/* the add view: the handle well, then the solid act */
+.fr-add .pf-field + .pf-solid { margin-top: calc(16 * var(--u)); }
+
+/* a friend's card: their swatch big beside the name (sentence case, as names are), the facts in
+   quiet caps, where they are in a sentence, the lanes, then REMOVE FRIEND and BLOCK quiet */
+.fr-card-head { display: flex; align-items: center; gap: calc(20 * var(--u)); margin-top: calc(26 * var(--u)); }
+.fr-card-swatch { width: calc(56 * var(--u)); height: calc(56 * var(--u)); }
+.fr-card-who { min-width: 0; }
+.fr-card-name { margin: 0 0 calc(8 * var(--u)); font-size: calc(40 * var(--u)); font-weight: 500; line-height: 1.05; color: var(--ink); overflow-wrap: anywhere; }
+.fr-card-where { margin: calc(18 * var(--u)) 0 0; font-family: var(--font-ui); font-size: calc(19 * var(--u)); line-height: 1.35; color: var(--ink-quiet); }
+.fr-card-where.is-online { color: var(--ink-rest); }
+.fr-card .pf-lanes { margin-top: calc(18 * var(--u)); }
+.fr-card-acts { display: flex; gap: calc(30 * var(--u)); margin-top: calc(18 * var(--u)); padding: 0 calc(12 * var(--u)); }
+.fr-card-acts .pf-row-act { color: var(--ink-quiet); }
+.fr-card-acts .pf-row-act:hover,
+.fr-card-acts .pf-row-act:focus { color: var(--ink); }
+.fr-card-acts .pf-row-act:focus-visible { box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--ink); }
+
+.fr-count { color: var(--ink-quiet); }
+
+@media (max-width: 760px) {
+  .fr-add-cell { height: 40px; gap: 6px; padding: 0 8px; font-size: 12px; }
+  .fr-add-cell + .sheet-x { margin-left: 8px; }
+  .fr-you { margin: 12px 18px 0; padding: 0 0 10px 4px; gap: 10px; }
+  .fr-you-swatch { width: 20px; height: 20px; }
+  .fr-you-name { font-size: 18px; }
+  .fr-status { height: 34px; padding: 0 8px 0 10px; gap: 8px; font-size: 12px; }
+  .fr-status-tray { width: min(320px, calc(100vw - 12% - 36px)); }
+  .fr-status-opt-text { font-size: 15px; }
+  .fr-status-opt-say,
+  .fr-switch-say { font-size: 13px; }
+  .fr-switch-key { font-size: 13px; }
+  .fr-switch-val { font-size: 14px; }
+  .fr-tabs { margin: 14px 18px 0; gap: 18px; }
+  .fr-tab { font-size: 14px; padding-bottom: 10px; }
+  .fr-tab-n { font-size: 12px; }
+  .fr-section-head { font-size: 12px; margin-top: 16px; }
+  .fr-friend { min-height: 58px; }
+  .fr-open { gap: 12px; padding: 8px 6px 8px 12px; }
+  .fr-swatch { width: 12px; height: 12px; }
+  .fr-name { font-size: 18px; }
+  .fr-level { font-size: 11px; }
+  .fr-where { font-size: 12px; }
+  .fr-msg-icon { width: 20px; height: 20px; }
+  .fr-empty-say { font-size: 22px; }
+  .fr-card-swatch { width: 40px; height: 40px; }
+  .fr-card-name { font-size: 28px; }
+  .fr-card-where { font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr-status-tray { animation: none; }
+}
+
+/* sign in and sign up on a phone: the sheet's px edges, and a shallower form so they fit a
+   tall phone without scrolling (a short one scrolls, the act stuck to the foot); the plate
+   keeps the name and drops its sentence, which the form's own head says better here */
+@media (max-width: 760px) {
+  .pf:is([data-view="signin"], [data-view="signup"]) .pf-who-say { display: none; }
+  .pf:is([data-view="signin"], [data-view="signup"]) .pf-plate { padding-top: 16px; }
+  .pf-form .pf-head { margin: 10px 0 12px; padding-bottom: 10px; }
+  .pf-form .pf-well,
+  .pf-form .pf-check-row,
+  .pf-form .pf-provider { height: 44px; }
+  .pf-form .pf-or { margin: 10px 0; }
+  .pf-form .pf-commit { padding-top: 4px; padding-bottom: 4px; }
+}
+
+/* ideas on one line (a count and how many online; a handle and when) told apart by a gap, never
+   by a glyph between them */
+.fr-parts { display: inline-flex; flex-wrap: wrap; column-gap: 0.9em; }

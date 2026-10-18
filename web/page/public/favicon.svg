@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="132 130 990 990">
+  <!-- the Retrocycles RC mark (favicon): R in ink, C in cyan, the amber dot; cropped to the
+       mark with a 6 % margin so it reads at 16 px -->
+  <rect x="132" y="130" width="990" height="990" fill="#000"/>
+  <path fill="#fff" d="M191 378H598V628H299V872H191V541H505V465H191Z"/>
+  <path fill="#fff" d="M318 668H441L535 792H1063V872H474Z"/>
+  <path fill="#00f5ff" d="M657 378H1063V465H750V670H978V757H657Z"/>
+  <rect x="1000" y="670" width="63" height="87" fill="#ffb800"/>
+</svg>

@@ -1,0 +1,581 @@
+/* The chat dock (ChatDock.tsx): direct messages in a window docked at the bottom
+   right of the home screen, the other conversations as tabs along the bottom edge. The sheets'
+   grammar (profile.css): thin-lined square cells on the night, the 4u ink bar at the left of
+   what has the focus, Akshar capitals for what labels, Overpass for what people wrote. Its unit
+   is the sheets' own, so it lines up with the panel it sits beside. */
+
+.dm-dock {
+  --u: clamp(0.8px, min(0.0651vw, 0.0977vh), 1.25px);
+  --dm-w: calc(460 * var(--u));
+  position: fixed;
+  z-index: 4;
+  right: 1.9%;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: calc(100vw - 3.8%);
+  font-family: var(--font-label);
+  color: var(--ink);
+  pointer-events: none;
+  transition: right 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.dm-dock > * { pointer-events: auto; }
+.dm-dock[hidden] { display: none; }
+
+/* a sheet holds the right edge (Friends, Profile, Settings): the dock stands at its left, its
+   foot level with the sheet's and its width inside what is left of the screen; narrower than
+   that it stands over the sheet's lower right instead (the dock is above the sheets) */
+.dm-dock.is-beside {
+  right: calc(1.9% + 674 * var(--u) + 14 * var(--u));
+  bottom: 3.7vh;
+  max-width: calc(100vw - 3.8% - 688 * var(--u));
+}
+
+.dm-dock.is-beside .dm-window,
+.dm-dock.is-beside .dm-tab { border-bottom: 1px solid var(--cell-line); }
+.dm-dock.is-beside .dm-tabs { margin-top: calc(8 * var(--u)); }
+
+@media (max-width: 1000px) and (min-width: 761px) {
+  .dm-dock.is-beside { right: 1.9%; max-width: calc(100vw - 3.8%); }
+}
+
+/* the documents line gives way while the window stands over it (it comes back with the tab) */
+.home-foot { transition: opacity 180ms ease-out, transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+/* and steps up over the tabs (the community cell hangs below the line) */
+body.has-dm-tabs .home-foot { transform: translateY(calc(-52 * clamp(0.8px, min(0.0651vw, 0.0977vh), 1.25px))); }
+body.has-dm-window .home-foot { opacity: 0; visibility: hidden; }
+
+/* ---- the window ----------------------------------------------------------------------- */
+
+.dm-window {
+  display: flex;
+  flex-direction: column;
+  width: var(--dm-w);
+  max-width: 100%;
+  max-height: min(calc(620 * var(--u)), calc(100vh - 3.4vh - 120 * var(--u)));
+  border: 1px solid var(--cell-line);
+  border-bottom: 0;
+  background: rgb(8, 11, 16);
+  /* it rises out of the bottom edge, its tab's place */
+  animation: dm-rise 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes dm-rise {
+  from { clip-path: inset(100% 0 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+.dm-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  padding: calc(14 * var(--u)) calc(10 * var(--u)) calc(14 * var(--u)) calc(18 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.dm-swatch {
+  flex: none;
+  display: block;
+  width: calc(18 * var(--u));
+  height: calc(18 * var(--u));
+  box-sizing: border-box;
+  border: 1px solid var(--cell-line);
+}
+
+.dm-head .dm-swatch { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+
+.dm-who {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--u));
+  min-width: 0;
+  margin: 0;
+  padding: calc(2 * var(--u)) 0;
+  font: inherit;
+  color: inherit;
+}
+
+.dm-name {
+  display: flex;
+  align-items: baseline;
+  gap: calc(10 * var(--u));
+  min-width: 0;
+  font-size: calc(24 * var(--u));
+  line-height: 1.1;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-level { flex: none; font-size: calc(14 * var(--u)); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-quiet); }
+
+.dm-where {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: calc(14 * var(--u));
+  line-height: 1.25;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* the stream down: a quiet word under where they are (the open conversation is asked meanwhile) */
+.dm-reconnecting {
+  font-size: max(11px, calc(12 * var(--u)));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.dm-where.is-online { color: var(--ink-rest); }
+.dm-where.is-online::before {
+  content: "";
+  display: inline-block;
+  width: calc(8 * var(--u));
+  height: calc(8 * var(--u));
+  margin-right: calc(8 * var(--u));
+  vertical-align: calc(1 * var(--u));
+  background: var(--online);
+}
+
+.dm-join {
+  flex: none;
+  height: calc(36 * var(--u));
+  margin: 0;
+  padding: 0 calc(12 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: none;
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.dm-join:hover,
+.dm-join:focus-visible { border-color: var(--ink-quiet); background: rgba(14, 18, 25, 0.98); outline: none; }
+.dm-join:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+.dm-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(40 * var(--u));
+  height: calc(40 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink-quiet);
+  cursor: pointer;
+  transition: color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.dm-icon svg { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+.dm-icon:hover,
+.dm-icon:focus-visible { border-color: var(--cell-line); color: var(--ink); outline: none; }
+.dm-icon:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+/* ---- the messages: runs, theirs at the left and mine at the right ---------------------- */
+
+.dm-messages {
+  position: relative;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 calc(14 * var(--u)));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 calc(14 * var(--u)));
+  flex: 1 1 auto;
+  min-height: calc(120 * var(--u));
+  margin: 0;
+  padding: calc(14 * var(--u)) calc(18 * var(--u)) calc(14 * var(--u));
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+.dm-messages:focus { outline: none; }
+.dm-messages:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+.dm-say {
+  padding: calc(18 * var(--u)) 0;
+  font-family: var(--font-ui);
+  font-size: calc(16 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+
+.dm-failed { display: flex; flex-direction: column; align-items: flex-start; gap: calc(10 * var(--u)); }
+
+.dm-retry {
+  margin: 0;
+  padding: calc(6 * var(--u)) 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dm-retry:focus { outline: none; }
+.dm-retry:hover,
+.dm-retry:focus-visible { box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--ink); }
+
+.dm-run {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(4 * var(--u));
+  margin-top: calc(14 * var(--u));
+}
+
+.dm-run.is-mine { align-items: flex-end; }
+
+/* the day: a hairline with the day's name on it */
+.dm-day {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  margin: calc(10 * var(--u)) 0 calc(4 * var(--u));
+  font-size: max(11px, calc(13 * var(--u)));
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.dm-day::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--hairline);
+}
+
+/* over the first unread message: the same line, in the count's amber */
+.dm-new {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  margin: calc(4 * var(--u)) 0;
+  font-size: max(11px, calc(13 * var(--u)));
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--waiting);
+}
+
+.dm-new::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.dm-at {
+  margin: 0 0 calc(2 * var(--u));
+  font-size: max(11px, calc(12.5 * var(--u)));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-quiet);
+}
+
+.dm-line {
+  max-width: 84%;
+  margin: 0;
+  padding: calc(8 * var(--u)) calc(12 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(14, 18, 25, 0.9);
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.4;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* mine: the cell filled with the rest ink, no line of its own */
+.dm-run.is-mine .dm-line {
+  border-color: transparent;
+  background: rgba(179, 191, 207, 0.16);
+}
+
+.dm-line::selection { background: var(--trail); color: #000; }
+
+.dm-line.is-sending { opacity: 0.6; }
+
+.dm-sending-note {
+  display: block;
+  margin-top: calc(2 * var(--u));
+  font-family: var(--font-label);
+  font-size: max(11px, calc(12 * var(--u)));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* ---- the well -------------------------------------------------------------------------- */
+
+.dm-write {
+  flex: none;
+  padding: calc(12 * var(--u)) calc(14 * var(--u)) calc(14 * var(--u));
+  border-top: 1px solid var(--hairline);
+}
+
+.dm-note,
+.dm-error,
+.dm-left {
+  margin: 0 0 calc(8 * var(--u));
+  font-family: var(--font-ui);
+  font-size: max(12px, calc(14 * var(--u)));
+  line-height: 1.35;
+  color: var(--ink-quiet);
+}
+
+/* a failure: the reversed cell, as everywhere on the page */
+.dm-error { padding: calc(6 * var(--u)) calc(10 * var(--u)); background: var(--ink); color: #000; }
+
+.dm-under {
+  display: flex;
+  align-items: baseline;
+  gap: calc(14 * var(--u));
+  margin-top: calc(6 * var(--u));
+}
+
+.dm-hint {
+  flex: 1 1 auto;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: max(11px, calc(13 * var(--u)));
+  line-height: 1.35;
+  color: var(--ink-quiet);
+}
+
+.dm-hint.is-said { color: var(--ink); }
+
+.dm-left { flex: none; margin: 0 0 0 auto; text-align: right; font-variant-numeric: tabular-nums; }
+.dm-left.is-low { color: var(--ink); }
+.dm-left.is-over { color: var(--failed); }
+.dm-well[aria-invalid] { color: var(--ink); }
+.dm-well-row:has(.dm-well[aria-invalid]) { border-color: var(--failed); }
+
+.dm-well-row {
+  display: flex;
+  align-items: flex-end;
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  transition: border-color 140ms ease-out;
+}
+
+.dm-well-row:focus-within { border-color: var(--ink-quiet); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+.dm-well {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* one line at rest; JS sets the height to the text, five lines at most, then it scrolls */
+  min-height: calc(46 * var(--u));
+  max-height: calc(17 * 1.4 * 5 * var(--u) + 22 * var(--u));
+  margin: 0;
+  padding: calc(11 * var(--u)) calc(14 * var(--u)) calc(11 * var(--u)) calc(16 * var(--u));
+  box-sizing: border-box;
+  border: 0;
+  background: none;
+  resize: none;
+  overflow-y: auto;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.4;
+  color: var(--ink);
+  caret-color: var(--ink);
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+.dm-well::placeholder { color: var(--ink-quiet); opacity: 1; }
+.dm-well:focus { outline: none; }
+.dm-well::selection { background: var(--trail); color: #000; }
+
+.dm-send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(46 * var(--u));
+  height: calc(46 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 140ms ease-out, color 140ms ease-out;
+}
+
+.dm-send svg { width: calc(22 * var(--u)); height: calc(22 * var(--u)); }
+.dm-send:not([aria-disabled="true"]):hover,
+.dm-send:focus-visible { background: var(--ink); color: #000; outline: none; }
+.dm-send[aria-disabled="true"] { color: var(--ink-quiet); cursor: default; }
+.dm-send[aria-disabled="true"]:focus-visible { background: none; color: var(--ink-rest); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+
+/* ---- the tabs along the bottom edge ---------------------------------------------------- */
+
+.dm-tabs {
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(8 * var(--u));
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dm-window + .dm-tabs { margin-top: 0; }
+
+.dm-tab {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  border: 1px solid var(--cell-line);
+  border-bottom: 0;
+  background: rgba(8, 11, 16, 0.94);
+  transition: border-color 140ms ease-out;
+}
+
+.dm-tab.has-new { border-color: var(--ink-quiet); }
+.dm-tab:hover,
+.dm-tab:focus-within { border-color: var(--ink-quiet); }
+
+.dm-tab-open {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  min-width: 0;
+  height: calc(42 * var(--u));
+  margin: 0;
+  padding: 0 calc(6 * var(--u)) 0 calc(14 * var(--u));
+  border: 0;
+  background: none;
+  font-family: var(--font-label);
+  font-size: calc(17 * var(--u));
+  color: var(--ink-rest);
+  cursor: pointer;
+}
+
+.dm-tab-open:focus { outline: none; }
+.dm-tab-open:focus-visible { box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.dm-tab.has-new .dm-tab-open,
+.dm-tab-open:hover,
+.dm-tab-open:focus-visible { color: var(--ink); }
+
+.dm-more .dm-tab-open { padding-right: calc(14 * var(--u)); font-variant-numeric: tabular-nums; }
+
+.dm-tab-name { max-width: calc(150 * var(--u)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.dm-tab-n {
+  flex: none;
+  font-size: calc(16 * var(--u));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--waiting);
+}
+
+/* a line that just came: on its tab for a few seconds, opened out of the name */
+.dm-tab-line {
+  max-width: calc(260 * var(--u));
+  padding-left: calc(10 * var(--u));
+  border-left: 1px solid var(--hairline);
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: dm-line-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes dm-line-in {
+  from { max-width: 0; opacity: 0; }
+  to { max-width: calc(260 * var(--u)); opacity: 1; }
+}
+
+.dm-tab.is-lit { border-color: var(--ink); }
+
+.dm-tab-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(32 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-quiet);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 140ms ease-out, color 140ms ease-out;
+}
+
+.dm-tab-x svg { width: calc(16 * var(--u)); height: calc(16 * var(--u)); }
+.dm-tab:hover .dm-tab-x,
+.dm-tab:focus-within .dm-tab-x { opacity: 1; }
+.dm-tab-x:hover,
+.dm-tab-x:focus-visible { color: var(--ink); outline: none; }
+.dm-tab-x:focus-visible { box-shadow: inset 0 calc(-2 * var(--u)) 0 var(--ink); }
+
+/* the status bar's messages cell: the count in the requests' amber */
+.status-messages .status-count { color: var(--waiting); }
+.status-messages:not(.has-new) { color: var(--ink-quiet); }
+.status-messages { gap: calc(8 * var(--u)); }
+
+/* ---- a phone: the window is a sheet from the bottom edge, the tabs a row that scrolls --- */
+
+@media (max-width: 760px) {
+  .dm-dock,
+  .dm-dock.is-beside { right: 0; left: 0; bottom: var(--dm-kb, 0px); max-width: none; align-items: stretch; }
+  .dm-window { width: auto; max-height: min(72vh, calc(var(--dm-vh, 100vh) - 56px)); border-left: 0; border-right: 0; }
+  .dm-head { padding: 10px 8px 10px 14px; }
+  .dm-name { font-size: 20px; }
+  .dm-where, .dm-level, .dm-reconnecting { font-size: 11px; }
+  .dm-note, .dm-hint, .dm-left, .dm-error { font-size: 12px; }
+  .dm-icon, .dm-join { height: 44px; }
+  .dm-icon { width: 44px; }
+  .dm-messages { padding: 4px 14px 12px; }
+  .dm-line { font-size: 15px; max-width: 88%; }
+  .dm-at, .dm-day, .dm-new { font-size: 11px; }
+  /* 16px keeps iOS from zooming into the well */
+  .dm-well { font-size: 16px; min-height: 44px; max-height: calc(16px * 1.4 * 5 + 22px); }
+  .dm-send { width: 44px; height: 44px; }
+  .dm-tabs { justify-content: flex-start; overflow-x: auto; padding: 0 8px env(safe-area-inset-bottom); scrollbar-width: none; }
+  .dm-dock:has(.dm-window) .dm-tabs { padding-bottom: 0; }
+  .dm-write { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .dm-tab { flex: none; }
+  .dm-tab-open { height: 44px; font-size: 15px; }
+  .dm-close,
+  .dm-tab-x { display: none; }
+  .dm-tab-open { padding-right: 14px; -webkit-touch-callout: none; user-select: none; }
+  .dm-tab-line { max-width: 50vw; font-size: 14px; }
+  /* the sheets fill a phone: the dock gives way while one is up */
+  .dm-dock.is-beside { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-dock { transition: none; }
+  .dm-window, .dm-tab-line { animation: none; }
+}

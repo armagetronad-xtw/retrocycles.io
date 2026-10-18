@@ -1,0 +1,29 @@
+{
+  "name": "retrocycles-play-page",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The Retrocycles play page: a Vite + React shell over the wasm client (web/wasm/API.md)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\""
+  },
+  "dependencies": {
+    "@discord/embedded-app-sdk": "2.5.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

@@ -1,0 +1,193 @@
+/* The bell and its news panel (NewsBell.tsx). The cell is a status cell;
+   with unread posts its glyph is ink, its line ink-quiet and its count a solid ink chip (the solid
+   act's figure, never the waiting amber). The panel hangs 15u under the bar at its right edge: the
+   sheets' ground and cell line, square, never lifted; rows under hairlines with the Focus Bar on
+   hover and focus. While it is up the menu steps back as behind the Friends panel, so the trail
+   and the Focus Bar are never on screen together. */
+
+.news-cell:not(.has-new) { color: var(--ink-rest); }
+.news-cell.has-new { border-color: var(--ink-quiet); color: var(--ink); }
+.news-cell[aria-expanded="true"] { border-color: var(--ink-quiet); color: var(--ink); }
+.news-cell .status-count {
+  min-width: calc(22 * var(--u));
+  padding: calc(3 * var(--u)) calc(5 * var(--u)) calc(2 * var(--u));
+  background: var(--ink);
+  color: var(--night);
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+}
+
+body.is-news { --scene-a: 0.4; }
+body.is-news .frame > :not(.status):not(.rewards-duel-home) { opacity: 0.4; pointer-events: none; transition: opacity 220ms ease-out; }
+body.is-news .status > :not(.news-cell):not(.news-panel) { opacity: 0.4; pointer-events: none; }
+body.is-news .docs-line { visibility: hidden; }
+body.is-news .frame .trail { visibility: hidden; }
+body.is-news .community-cell { visibility: hidden; }
+body.is-news .hs-hint,
+body.is-news .ck-banner { display: none; }
+
+.news-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 15 * var(--u));
+  z-index: 30;
+  width: min(calc(460 * var(--u)), calc(100vw - 2 * 1.9vw));
+  max-height: min(calc(640 * var(--u)), 72vh);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.94);
+  font-family: var(--font-label);
+  text-align: left;
+  animation: news-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes news-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+.news-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+  padding: calc(18 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u)) calc(24 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.news-title {
+  margin: 0;
+  color: var(--ink-rest);
+  font-size: calc(18 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.news-all {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  min-height: calc(32 * var(--u));
+  color: var(--ink-rest);
+  font-size: calc(15 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: color 140ms ease-out;
+}
+
+.news-all:hover,
+.news-all:focus-visible { color: var(--ink); }
+.news-out { width: calc(15 * var(--u)); height: calc(15 * var(--u)); color: var(--ink-quiet); }
+
+.news-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+.news-list > li + li { border-top: 1px solid var(--hairline); }
+
+.news-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: calc(6 * var(--u));
+  padding: calc(16 * var(--u)) calc(22 * var(--u)) calc(17 * var(--u)) calc(24 * var(--u));
+  color: var(--ink-rest);
+  text-decoration: none;
+  outline: none;
+}
+
+/* the Focus Bar: solid ground and the 4u ink bar inset at the left edge */
+.news-row:hover,
+.news-row:focus-visible { background: rgba(4, 6, 9, 0.96); }
+.news-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(4 * var(--u));
+  background: var(--ink);
+  opacity: 0;
+}
+.news-row:hover::before,
+.news-row:focus-visible::before { opacity: 1; }
+
+.news-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: calc(12 * var(--u));
+  font-size: calc(15 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.news-new { color: var(--ink); font-weight: 600; }
+.news-when { color: var(--ink-quiet); }
+/* the row leaves for the site in a new tab: ALL NEWS's mark, at the row's right */
+.news-row-out { width: calc(15 * var(--u)); height: calc(15 * var(--u)); margin-left: auto; align-self: center; color: var(--ink-quiet); }
+
+.news-row-title {
+  color: var(--ink-rest);
+  font-size: calc(22 * var(--u));
+  font-weight: 400;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.news-row.is-new .news-row-title,
+.news-row:hover .news-row-title,
+.news-row:focus-visible .news-row-title { color: var(--ink); }
+.news-row.is-new .news-row-title { font-weight: 600; }
+
+.news-row-say {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  color: var(--ink-quiet);
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.4;
+}
+
+.news-say {
+  margin: 0;
+  padding: calc(20 * var(--u)) calc(24 * var(--u)) calc(24 * var(--u));
+  color: var(--ink-quiet);
+  font-family: var(--font-ui);
+  font-size: calc(16 * var(--u));
+  line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  /* over the menu here, so as dense as the sheets on a phone */
+  body.is-news .frame > :not(.status):not(.rewards-duel-home) { opacity: 0; }
+  .news-panel { position: fixed; left: 6%; right: 6%; top: calc(12vh + 52px); width: auto; max-height: 70vh; background: rgba(8, 11, 16, 0.97); }
+  .news-head { padding: 14px 14px 12px 16px; }
+  .news-title { font-size: 15px; }
+  .news-all { min-height: 44px; font-size: 13px; }
+  .news-row { padding: 14px 14px 15px 16px; min-height: 44px; }
+  .news-row-top { font-size: 12px; }
+  .news-row-out { width: 13px; height: 13px; }
+  .news-cell .status-count { min-width: 18px; padding: 2px 4px 1px; }
+  .news-row-title { font-size: 18px; }
+  .news-row-say { font-size: 14px; }
+  .news-say { font-size: 15px; padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .news-panel { animation: none; }
+}

@@ -1,0 +1,33 @@
+Fonts self-hosted for the play page.
+
+Armagetron      the game's own bitmap font, textures/font.png of Armagetron Advanced
+                (the project's licence applies, see COPYING at the repository root),
+                and textures/font_extra.png (its Latin-1 half),
+                converted to armagetron.ttf / armagetron.woff2 by web/page/tools/atlas2font.py
+                (ASCII 0x20-0x7E, Latin-1 0xA1-0xFF, the Polish letters composed from the
+                atlas's own pixels; one pixel = 64 units, 16 px cap on a 24 px em)
+
+Overpass        (c) The Overpass Project Authors (https://github.com/RedHatOfficial/Overpass)
+                SIL Open Font License 1.1 -- https://openfontlicense.org
+                overpass-latin.woff2, overpass-latin-ext.woff2
+                variable weight 100-900; the latin and latin-ext subsets served by
+                Google Fonts for `Overpass:wght@400;500` (v19)
+
+The Overpass files are unmodified Google Fonts subsets. The SIL OFL 1.1 permits
+bundling and web-serving; it forbids selling the fonts on their own and requires this
+notice to travel with them. Full licence text: https://openfontlicense.org/open-font-license-official-text/
+
+Noto Sans KR, Noto Sans JP, Noto Sans SC, Noto Sans TC
+                (c) Google LLC and the Noto Project Authors (https://github.com/notofonts/noto-cjk)
+                SIL Open Font License 1.1 -- https://openfontlicense.org
+                cjk/<kr|jp|sc|tc>/<n>.woff2, variable weight 100-900; the unicode-range
+                slices served by Google Fonts for `Noto Sans KR:wght@400;600` (and JP, SC, TC),
+                unmodified, fetched and listed in cjk/faces.css by web/page/tools/cjk-fonts.mjs;
+                what players write in Korean, Japanese and Chinese in the chat overlay
+
+Akshar          (c) 2021 The Akshar Project Authors (https://github.com/itfoundry/akshar)
+                SIL Open Font License 1.1 -- https://openfontlicense.org
+                akshar-latin.woff2, akshar-latin-ext.woff2, variable weight 300-700
+                the latin and latin-ext subsets served by Google Fonts for
+                `Akshar:wght@300..700` (v20), unmodified; the menu labels and status text
+                of the home screen (latin-ext: the Polish letters of the translations)

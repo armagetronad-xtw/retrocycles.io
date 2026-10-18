@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- The sign-in popup's last stop on a cross-origin isolated play page
+     (platform-contract/README.md "External sign-in", web/page/src/platform/external.ts).
+     The play page is served with Cross-Origin-Opener-Policy: same-origin, so a popup
+     that went to the platform and the provider has no window.opener any more; the
+     platform's result page navigates here instead, with the result in the fragment:
+     /auth-complete.html#rc-auth=<URL-encoded JSON>. This page, on the play page's own
+     origin, posts it on BroadcastChannel("rc-auth") and closes. No React, no game. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="no-referrer">
+<title>Retrocycles sign-in</title>
+<link rel="stylesheet" href="./plain.css">
+</head>
+<body>
+<p id="m">You can close this window.</p>
+<script src="./auth-complete.js"></script>
+</body>
+</html>

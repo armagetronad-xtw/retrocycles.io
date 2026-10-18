@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- The age requirements (DRAFT until LEGAL.draft is false). LEGAL.minimumAge stays marked until it is taken out of LEGAL.pending; LEGAL.requireAgeConfirmation adds the sign-up checkbox. Filled in by tools/legal-pages.ts. -->
+<html lang="en">
+<head>
+<!--rc:head-->
+<title>Age requirements - Retrocycles</title>
+<meta name="description" content="Who can play Retrocycles.io, who can have an account, and what parents and schools should know.">
+</head>
+<body class="doc" data-doc="age">
+<!--rc:top-->
+<main class="doc-main" id="main">
+<header class="doc-head">
+<h1 class="doc-title">Age</h1>
+<!--rc:draft-->
+<p class="doc-sub">Who can play, who can have an account, and what parents and schools should know. Effective {{effectiveDate}}.</p>
+</header>
+
+<div class="doc-body">
+
+<h2 id="accounts">Accounts: {{minimumAge}} and older</h2>
+<p>You must be {{minimumAge}} or older to create an account. In some countries you must be older (up to 16 in parts of the EU) to agree on your own to how a service uses your data; if that is you, a parent or guardian must agree for you.</p>
+<!--rc:if ageConfirmation-->
+<p>When you create an account, we ask you to confirm that you are {{minimumAge}} or older.</p>
+<!--rc:end-->
+
+<h2 id="guests">Playing as a guest</h2>
+<p>You don't need an account to play. Guests do not provide an email address or any name other than the one typed into the game. Guests still get a random ID so their games and progress can be recorded, as the <a href="../privacy/">privacy policy</a> describes. Guests under {{minimumAge}} may play but must not chat in official rooms.</p>
+<p>Regardless of age, don't put your real name, age, school, address or photos in your player name or in chat, and don't ask anyone else for theirs.</p>
+
+<h2 id="parents">Parents</h2>
+<p>If your child under {{minimumAge}} created an account or gave us personal information, write to {{contactEmail:mail}}. We will delete the account and the information. You can also ask us what we hold about your child.</p>
+<p>Chat in the official rooms follows the <a href="../conduct/">code of conduct</a>, and anyone can report a player.</p>
+
+<h2 id="schools">Schools and shared computers</h2>
+<ul>
+<li>Students can play as guests without signing up.</li>
+<li>On a shared computer, "New player" (open the name, top right) starts a new guest for the next student. Selecting "shared computer" at sign-in ends the session when the browser closes.</li>
+<li>A classroom often shares one IP address. We do not ban IP addresses on their own, so one player's ban does not lock out the whole class.</li>
+</ul>
+
+<h2 id="contact">Contact</h2>
+<p>{{contactEmail:mail}}</p>
+
+</div>
+</main>
+<!--rc:foot-->
+</body>
+</html>

@@ -1,0 +1,16 @@
+scene.avif, scene.webp: the play page's poster (index.html, App.tsx, page.css ".poster")
+
+What it is: the attract scene's opening frame as the game draws it (this repository's wasm
+client: the 3D stadium, depth of field, the graphics line; the default
+replay, and textures/dir_wall.png at alpha ~236), captured at 1920x1080 from the dev page
+with the page's own layers hidden (#root display:none) 250 ms after the first `scene`
+event. The replay opens on the same clip and camera on every load, so the live scene takes
+over from the poster on the same picture. The models and textures are the game's (GPL, see
+/licenses/).
+
+Encoded: scene.avif (ImageMagick, -quality 66, 1920x1080, ~27 KB), scene.webp (-resize
+1600x900 -quality 70, ~31 KB) for browsers without AVIF.
+
+Re-capture it when the replay's first clip, its camera or the game's look change
+(src/tron/gSceneReplayData.h, the SCENE_REPLAY_CAMERA_* and SCENE_REPLAY_CINEMA_* camera, the
+stadium, the wall and floor look).

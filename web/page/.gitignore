@@ -1,0 +1,9 @@
+# the app's own build output and dependencies; the served bundle is web/dist (make dist)
+node_modules/
+dist/
+*.tsbuildinfo
+
+# the root .gitignore excludes every *.html (doxygen output); the page's entry and its
+# static pages (the sign-in relay, the emailed links' forwarders) are hand written
+!index.html
+!public/auth-complete.html

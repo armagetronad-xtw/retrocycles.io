@@ -1,0 +1,231 @@
+/* The page in a social post's frame (?embed, src/links.ts; components/Embed.tsx), imported
+   last. The frame is small (X's player card: 480 x 480), so sizes are in px and vmin, not
+   --u. The queue, the status bar and the documents line give way to one solid PLAY in the
+   middle; the wordmark, the scene, the stage and the game stay as they are. */
+
+body.is-embed:not(.is-discord) .status,
+body.is-embed:not(.is-discord) .home-menu,
+body.is-embed .docs-line { display: none; }
+
+/* A Discord Activity keeps the home screen's modes and its status cells: Quick
+   Play, the Server Browser, Training; the profile (without what leaves the page: views.tsx), friends,
+   settings. On a phone Discord's own bar (leave, people) covers the top edge, so the status cells
+   stand below it, as the touch cells do in a game (hud.css). The line about the others in the
+   launch sits under the modes. */
+body.is-discord.is-compact .status { top: max(3.4vh, calc(var(--discord-safe-area-inset-top, env(safe-area-inset-top)) + 72px)); }
+.discord-together { display: none; }
+body.is-discord:not(.is-stage):not(.is-game) .discord-together {
+  display: block;
+  position: absolute;
+  left: max(3.7%, var(--discord-safe-area-inset-left, env(safe-area-inset-left)));
+  bottom: max(5vh, var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)));
+  max-width: min(520px, 60%);
+  margin: 0;
+  padding: 6px 10px;
+  background: rgba(4, 6, 9, 0.62);
+  color: var(--ink-rest);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.embed { display: none; }
+
+body.is-embed .embed {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+/* the stage, the game and the sheets cover the frame: the PLAY goes with the queue */
+body.is-embed.is-stage .embed,
+body.is-embed.is-game .embed { display: none; }
+
+.embed-play {
+  position: relative;
+  width: min(100%, 320px);
+  height: clamp(56px, 16vmin, 84px);
+  padding: 0;
+  border: 0;
+  background: var(--ink);
+  color: #000;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: clamp(28px, 9vmin, 44px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  /* the trail, standing round the one thing to press */
+  box-shadow: 0 0 0 3px var(--night), 0 0 0 5px var(--trail), 0 0 18px 4px rgba(47, 211, 255, 0.45);
+  transition: background-color 140ms ease-out;
+}
+
+.embed-play:hover,
+.embed-play:focus { background: #ffffff; outline: none; }
+.embed-play[aria-busy="true"] { cursor: progress; background: var(--ink-quiet); }
+
+.embed-note {
+  margin: 0;
+  max-width: 100%;
+  padding: 4px 8px;
+  background: var(--ivory);
+  color: #000;
+  font-family: var(--font-label);
+  font-size: 15px;
+  line-height: 1.25;
+}
+.embed-note.is-quiet { background: none; color: var(--ink-quiet); }
+
+.embed-say {
+  margin: 0;
+  color: var(--ink-rest);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.embed-out {
+  color: var(--ink-quiet);
+  font-family: var(--font-label);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-bottom: 1px solid var(--hairline);
+}
+.embed-out::after { content: " \2197"; }
+.embed-out:hover,
+.embed-out:focus { color: var(--ink); border-bottom-color: var(--ink); outline: none; }
+
+/* the wordmark fits the frame's width */
+body.is-embed:not(.is-discord) .mark { left: 8%; top: 7vh; font-size: clamp(30px, 9vmin, 48px); letter-spacing: -3px; text-shadow: 2px 0 0 currentColor; }
+
+/* the keys at the start of the first games, in any compact view (compact.ts): small and low, the arena stays in view */
+body.is-compact .keys-line { left: 8%; bottom: 24vh; max-width: 84%; padding: 6px 10px; column-gap: 16px; row-gap: 6px; }
+body.is-compact .keycap { min-width: 26px; height: 26px; padding: 0 6px; font-size: 13px; }
+body.is-compact .keycap.is-arrow { width: 26px; padding: 0; }
+body.is-compact .keycap svg { width: 14px; height: 14px; }
+body.is-compact .keygroup { gap: 8px; }
+body.is-compact .keygroup-words { font-size: 13px; }
+
+/* the Esc menu: the actions alone (GameMenu.tsx leaves the players out here), centred in the frame */
+body.is-embed .gm { left: 50%; right: auto; top: 50%; width: min(320px, 86vw); transform: translate(-50%, -50%); flex-direction: column; align-items: stretch; }
+body.is-embed .gm > .sheet-x { order: -1; align-self: flex-end; }
+body.is-embed .gm-actions { width: 100%; padding-top: 14px; }
+body.is-embed .gm .lane { height: 50px; font-size: 24px; }
+
+/* the way to the whole page while the embed plays (Embed.tsx FullGameCell): a cell in the touch
+   cells' idiom at the top, in the middle (clear of the chat lines at the left and the chat and
+   menu cells at the right), only while the player is not riding: it fades in as they die and
+   lingers a moment, fading, after they ride again */
+.full-game-cell {
+  position: absolute;
+  top: max(12px, var(--discord-safe-area-inset-top, env(safe-area-inset-top)));
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px 0 18px;
+  border: 1px solid var(--ink-quiet);
+  background: rgba(8, 11, 16, 0.96);
+  font-family: var(--font-label);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--ink);
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateX(-50%);
+  animation: full-game-in 280ms ease-out both;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+.full-game-cell-icon { flex: none; width: 18px; height: 18px; color: var(--ink-rest); }
+.full-game-cell:hover,
+.full-game-cell:focus-visible { border-color: var(--ink); background: rgba(14, 18, 25, 0.98); outline: none; }
+.full-game-cell:active { background: var(--ink); border-color: var(--ink); color: #000; }
+.full-game-cell:active .full-game-cell-icon { color: #000; }
+/* riding again: it stays a moment, then fades (FullGameCell's LINGER_MS), and takes no press meanwhile */
+.full-game-cell.is-leaving { pointer-events: none; animation: full-game-out 1500ms ease-in both; }
+
+/* while RESPAWN IN counts: just above the count, which is centred (hud.css .respawn-cell) */
+.full-game-cell.is-respawn {
+  top: auto;
+  bottom: calc(50% + (var(--respawn-label) + var(--respawn-gap) + var(--respawn-count)) / 2 + clamp(14px, 3vmin, 28px));
+}
+
+@keyframes full-game-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes full-game-out {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (pointer: coarse) {
+  .full-game-cell { height: 52px; font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .full-game-cell { animation: none; }
+  .full-game-cell.is-leaving { animation: none; opacity: 0.6; }
+}
+
+/* a Discord Activity shown small (picture in picture, the call grid; App.tsx): the game goes on
+   under a quiet scrim with one word on it, since nobody can steer there; it takes no press, a tap
+   is Discord's (it brings the Activity back) */
+.discord-small {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.55);
+  font-family: var(--font-label);
+  font-weight: 500;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+/* full screen for the embed (Embed.tsx FullscreenCell): a square cell in the same idiom at the
+   lower right, clear of the HUD rail in the middle of the foot */
+.fullscreen-cell {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--ink-quiet);
+  background: rgba(8, 11, 16, 0.86);
+  color: var(--ink-rest);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out;
+}
+.fullscreen-cell-icon { width: 20px; height: 20px; }
+.fullscreen-cell:hover,
+.fullscreen-cell:focus-visible { border-color: var(--ink); color: var(--ink); background: rgba(14, 18, 25, 0.98); outline: none; }
+.fullscreen-cell:active { background: var(--ink); border-color: var(--ink); color: #000; }

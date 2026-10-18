@@ -1,0 +1,364 @@
+/* The trust documents (about, code of conduct, privacy, terms, age): static
+   pages beside the play page, in the same world. The void, the
+   four dust neutrals, the game's face for every word the page says on its own (the mark,
+   titles, section keys, the navigation) and Overpass for the running text, which is the
+   bulk here. Unlike the play page a document scrolls, has no canvas and no dust, and
+   prints. Nothing enclosed: a section is a key in the game's face over its prose; a list
+   is an inset; a table is columns with no lines. Amber marks the focused link only: the
+   caret before the mark, "play" and the navigation, the ring on links in the text. The
+   only fills are the reversed cells: the draft notice and a placeholder still to fill. */
+
+@import "../styles/faces.css";
+
+* { box-sizing: border-box; }
+
+html {
+  background: var(--void);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body.doc {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--void);
+  color: var(--grey);
+  font-family: var(--font-ui);
+  font-size: calc(18 * var(--u));
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+}
+
+::selection { background: var(--amber); color: #000; }
+
+:focus:not(:focus-visible) { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: calc(3 * var(--u));
+}
+
+/* the game's face: whole em multiples, unsmoothed, no weight, no tracking */
+.doc-mark,
+.doc-play,
+.doc-title,
+.doc-draft,
+.doc h2,
+.doc-nav a,
+.data dt,
+.doc .key {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+/* ---- the top: the mark (back to the game) and "play" ------------------------------ */
+
+.doc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(24 * var(--u));
+  padding: 3.3vh 3.83% 0;
+  min-height: calc(3.3vh + 5.5vh);
+}
+
+.doc .doc-mark,
+.doc .doc-play {
+  position: relative;
+  color: var(--ivory);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.doc-mark { font-size: var(--size-front); }
+
+.doc .doc-play {
+  font-size: var(--size-small);
+  color: var(--grey);
+}
+
+.doc .doc-play:hover,
+.doc .doc-play:focus-visible { color: var(--ivory); }
+
+/* the caret is the focus device of the bare lines in the game's face */
+.doc-mark::before,
+.doc-play::before,
+.doc-nav a::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  background: var(--amber);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease-out;
+}
+
+.doc-mark::before {
+  margin-right: calc(24 * var(--u));
+  width: calc(24 * var(--u));
+  height: calc(48 * var(--u));
+  box-shadow: 0 0 calc(6 * var(--u)) color-mix(in srgb, var(--amber) 70%, transparent),
+    inset 0 0 calc(8 * var(--u)) rgba(255, 220, 120, 0.55);
+}
+
+.doc-play::before,
+.doc-nav a::before {
+  margin-right: calc(14 * var(--u));
+  width: calc(12 * var(--u));
+  height: calc(20 * var(--u));
+}
+
+.doc-mark:focus-visible,
+.doc-play:focus-visible,
+.doc-nav a:focus-visible { outline: none; }
+
+.doc-mark:focus-visible::before,
+.doc-play:focus-visible::before,
+.doc-nav a:focus-visible::before { opacity: 1; }
+
+/* ---- the head: title, the draft cell, the line under it ----------------------------- */
+
+.doc-main {
+  padding: 7vh 7.73% 0;
+}
+
+.doc-title {
+  margin: 0;
+  font-size: var(--size-front);
+  line-height: 1;
+  color: var(--ivory);
+}
+
+/* the reversed cell: the draft notice is the one thing here a reader must not miss */
+.doc-draft {
+  display: inline-block;
+  margin: calc(28 * var(--u)) 0 0;
+  padding: calc(4 * var(--u)) calc(8 * var(--u)) calc(2 * var(--u));
+  font-size: var(--size-small);
+  line-height: 1.25;
+  background: var(--ivory);
+  color: #000;
+}
+
+.doc-sub {
+  margin: calc(16 * var(--u)) 0 0;
+  max-width: 60ch;
+  font-size: calc(19 * var(--u));
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+/* ---- the text -------------------------------------------------------------------------- */
+
+.doc-body { max-width: 68ch; margin-top: calc(56 * var(--u)); }
+
+.doc h2 {
+  margin: calc(56 * var(--u)) 0 calc(18 * var(--u));
+  font-size: var(--size-small);
+  line-height: 1.25;
+  color: var(--ivory);
+  scroll-margin-top: calc(24 * var(--u));
+}
+
+.doc-body > h2:first-child { margin-top: 0; }
+
+.doc p { margin: 0 0 calc(14 * var(--u)); }
+
+/* emphasis is a plane, not a weight */
+.doc b,
+.doc strong { font-weight: inherit; color: var(--ivory); }
+
+.doc .quiet { color: var(--dim); }
+
+/* the About page's dedication: one quiet italic paragraph between the head and the text */
+.doc-dedication {
+  max-width: 60ch;
+  margin-top: calc(56 * var(--u));
+  font-style: italic;
+}
+
+.doc-dedication .doc-dedication-sign { color: var(--dim); }
+
+.doc ul,
+.doc ol {
+  margin: 0 0 calc(14 * var(--u));
+  padding: 0 0 0 calc(44 * var(--u));
+  list-style: none;
+}
+
+.doc li + li { margin-top: calc(10 * var(--u)); }
+
+/* the strike ladder: numbered steps, the number in the game's face one plane back */
+.doc ol.steps { counter-reset: step; }
+.doc ol.steps > li { counter-increment: step; position: relative; }
+.doc ol.steps > li::before {
+  content: counter(step);
+  position: absolute;
+  right: 100%;
+  margin-right: calc(18 * var(--u));
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1.2;
+  color: var(--dim);
+  -webkit-font-smoothing: none;
+}
+
+.doc a {
+  color: var(--ivory);
+  text-decoration: underline;
+  text-decoration-color: var(--dim);
+  text-decoration-thickness: 1px;
+  text-underline-offset: calc(4 * var(--u));
+}
+
+.doc a:hover { text-decoration-color: var(--ivory); }
+
+/* a placeholder still to fill in: a reversed cell in the line */
+.ph {
+  padding: 0 calc(4 * var(--u));
+  background: var(--ivory);
+  color: #000;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.ph a { color: #000; text-decoration-color: #000; }
+
+/* key | text rows: the Profile's facts idiom (a key in the game's face, its text beside) */
+.data {
+  display: grid;
+  grid-template-columns: calc(220 * var(--u)) minmax(0, 1fr);
+  column-gap: calc(28 * var(--u));
+  row-gap: calc(22 * var(--u));
+  margin: 0 0 calc(14 * var(--u));
+}
+
+.data dt {
+  font-size: var(--size-small);
+  line-height: 1.25;
+  color: var(--ivory);
+  padding-top: calc(2 * var(--u));
+}
+
+.data dd { margin: 0; }
+.data dd p:last-child { margin-bottom: 0; }
+
+/* credits: a name and what they did, two columns, no lines */
+.credits {
+  display: grid;
+  grid-template-columns: calc(260 * var(--u)) minmax(0, 1fr);
+  column-gap: calc(28 * var(--u));
+  row-gap: calc(6 * var(--u));
+  margin: 0 0 calc(22 * var(--u));
+}
+
+.credits dt { color: var(--ivory); }
+.credits dd { margin: 0; }
+
+.doc .key {
+  display: block;
+  margin: calc(28 * var(--u)) 0 calc(12 * var(--u));
+  font-size: var(--size-small);
+  line-height: 1.25;
+  color: var(--dim);
+}
+
+.doc-commit { color: var(--ivory); }
+
+.doc code { font-family: inherit; color: var(--ivory); }
+
+/* ---- the foot: the documents, the licence line -------------------------------------- */
+
+.doc-foot {
+  margin-top: calc(96 * var(--u));
+  padding: 0 7.73% 6vh;
+}
+
+.doc-nav {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: calc(40 * var(--u));
+  row-gap: calc(16 * var(--u));
+}
+
+.doc .doc-nav a {
+  position: relative;
+  font-size: var(--size-small);
+  line-height: 1;
+  color: var(--dim);
+  text-decoration: none;
+}
+
+.doc .doc-nav a:hover,
+.doc .doc-nav a:focus-visible,
+.doc .doc-nav a[aria-current="page"] { color: var(--ivory); }
+
+.doc-licence {
+  margin: calc(40 * var(--u)) 0 0;
+  max-width: 78ch;
+  font-size: calc(15 * var(--u));
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+/* ---- the other widths ------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  :root {
+    --u: clamp(0.9px, 0.26vw, 1.1px);
+    --size-front: 48px;
+    --size-rear: 24px;
+    --size-small: 24px;
+  }
+
+  .doc-top { padding: 3vh 5% 0 12%; }
+  .doc-mark { font-size: 24px; }
+  .doc-mark::before { width: 16px; height: 32px; margin-right: 14px; }
+  .doc-main { padding: 6vh 5% 0 12%; }
+  .doc-foot { padding: 0 5% 6vh 12%; }
+  .doc-body { margin-top: calc(40 * var(--u)); }
+  .doc ul,
+  .doc ol { padding-left: calc(28 * var(--u)); }
+  .data,
+  .credits { grid-template-columns: minmax(0, 1fr); row-gap: calc(8 * var(--u)); }
+  .data dd { margin-bottom: calc(16 * var(--u)); }
+  .credits dd { margin-bottom: calc(10 * var(--u)); }
+}
+
+/* ---- paper ---------------------------------------------------------------------------------- */
+
+@media print {
+  html,
+  body.doc { background: #fff; color: #000; font-size: 11pt; line-height: 1.45; }
+  .doc-play,
+  .doc-nav { display: none; }
+  .doc-top { padding: 0; min-height: 0; }
+  .doc .doc-mark { font-size: 16pt; color: #000; }
+  .doc-main,
+  .doc-foot { padding: 0; }
+  .doc-main { margin-top: 18pt; }
+  .doc-title { font-size: 24pt; color: #000; }
+  .doc-draft { background: none; color: #000; outline: 1px solid #000; }
+  .doc-sub,
+  .doc .quiet,
+  .doc .key,
+  .doc-licence { color: #333; }
+  .doc h2,
+  .doc b,
+  .doc strong,
+  .data dt,
+  .credits dt,
+  .doc-commit { color: #000; }
+  .doc h2 { break-after: avoid; }
+  .doc a { color: #000; text-decoration-color: #000; }
+  .doc-body a[href^="http"]::after,
+  .doc-body a[href^="mailto"]::after { content: " <" attr(href) ">"; font-size: 0.9em; }
+  .ph { background: none; color: #000; outline: 1px solid #000; }
+  .doc-body,
+  .doc-foot { max-width: none; }
+}

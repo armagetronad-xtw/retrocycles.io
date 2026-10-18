@@ -1,0 +1,10 @@
+card.jpg, square.jpg: the share cards (tools/social.ts): card.jpg 1200x630 is the Open Graph
+image (og:image: Discord, Slack, iMessage, ...), square.jpg 960x960 the X player card's image
+(twitter:image, shown where X cannot frame the player and before it is pressed).
+
+What they are: the play page's poster (../poster/, the attract scene's opening frame as the game
+draws it) cropped, with the wordmark in the game's own bitmap font (../fonts/armagetron.ttf), one
+line in Segoe UI Semibold and a PLAY block in the page's colours, composed with ImageMagick
+(2026-10-09). The models and textures are the game's (GPL, see /licenses/).
+
+Make them again when the poster or the wordmark change.

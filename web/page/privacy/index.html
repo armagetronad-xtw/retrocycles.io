@@ -1,0 +1,178 @@
+<!doctype html>
+<!-- The privacy policy (DRAFT until LEGAL.draft is false). Keep it in step with what the page, the platform service and the official rooms do. Filled in by tools/legal-pages.ts. -->
+<html lang="en">
+<head>
+<!--rc:head-->
+<title>Privacy - Retrocycles</title>
+<meta name="description" content="What Retrocycles.io collects, why, how long it keeps it, and how to have it deleted.">
+</head>
+<body class="doc" data-doc="privacy">
+<!--rc:top-->
+<main class="doc-main" id="main">
+<header class="doc-head">
+<h1 class="doc-title">Privacy</h1>
+<!--rc:draft-->
+<p class="doc-sub">What Retrocycles.io collects, why, and for how long. Effective {{effectiveDate}}.</p>
+</header>
+
+<div class="doc-body">
+
+<h2 id="short">The short version</h2>
+<ul>
+<li>You can play without an account. A guest is a random ID in a cookie.</li>
+<li>An account keeps your email address, your handle, your name and your password's hash, or the sign-in service you chose.</li>
+<li>We count how the page is used (how long loading takes, where connecting fails) without storing your IP address. We also use Google Analytics to see how people find the game; in the EU, the UK and Switzerland only if you agree. No advertising.</li>
+<li>We email you about your account, and news only if you ask for it.</li>
+<li>We don't sell your data or share it for advertising.</li>
+<li>To have your data deleted, write to {{contactEmail:mail}}.</li>
+</ul>
+
+<h2 id="who">Who we are</h2>
+<p>Retrocycles.io is run by {{operator}}, {{postalAddress}} ("we"). This policy covers the page at {{siteHost}}, the platform behind it (sign-in, Quick Play, progress) and the official game rooms. Community servers you join from the server browser are run by others: when you play there, their admins see what any game server sees, and their own rules apply.</p>
+
+<h2 id="what">What we keep, why, and for how long</h2>
+<dl class="data">
+<dt>Guest</dt>
+<dd>
+<p>When you first play, the platform makes you a guest: a random ID (like <code>g-7f3a9c01</code>), the name you play under, and when it was made. It lets the official rooms recognise you, so your progress is saved.</p>
+<p class="quiet">Kept until the guest becomes an account, is merged into one, or is deleted. Unused guests are not yet deleted automatically; once they are, the period will be {{guestRetention}}.</p>
+</dd>
+
+<dt>Account</dt>
+<dd>
+<p>If you create an account: your email address and whether you confirmed it, your handle, your display name, and a hash of your password (Argon2id; we never store the password itself). If you sign in with Google or Discord: that service's ID for you, its name for you, and the email address it confirmed. We also record whether you asked for <a href="#news-emails">news emails</a>, and when and where you did.</p>
+<p>When you choose a password we check it against known leaked passwords with Have I Been Pwned: only the first 5 characters of a hash of the password leave our server.</p>
+<p class="quiet">Kept as long as the account exists. Failed sign-ins are counted so that the account can be locked temporarily after too many attempts.</p>
+</dd>
+
+<dt>Sessions</dt>
+<dd>
+<p>Signing in, or playing as a guest, starts a session: a cookie in your browser holding a random key, and on our side the session's start, its last use, when it ends, whether it is on a shared computer, and your browser's user agent (shown as "Chrome on Windows" in your list of sessions).</p>
+<p class="quiet">A session ends 30 days after its last use. On a shared computer it ends when the browser closes, after 2 hours without use, or after 12 hours at most. Signing out deletes it.</p>
+</dd>
+
+<dt>Progress</dt>
+<dd>
+<p>The official rooms report to the platform what happens in your games while you are logged in: the rounds and matches you play, with the name you used, your team, score, place, kills, deaths and how long you played. From these we work out your XP, level and stats.</p>
+<p>The official rooms also record each match: the players' names, teams, positions, pings, kills and scores, round by round. Not chat or IP addresses (chat is covered <a href="#chat">below</a>). We use the recordings to check results, study how matches play and improve the game.</p>
+<p><b>Your profile is public:</b> your handle, name, level, XP and stats are visible to anyone.</p>
+<p class="quiet">Kept as long as your guest or account exists. Match recordings are deleted after 180 days.</p>
+</dd>
+
+<dt id="chat">Chat in the official rooms</dt>
+<dd>
+<p>Every chat line in an official room, including team and private messages, is checked against the chat rules before other players see it. A line that breaks them is masked or not sent, and can count against the sender. The check is automatic: a list of words, with no person reading along.</p>
+<p>We keep each line as evidence for moderation: the text, the room, the time, whether it was public, team or private (and to whom), what the check decided, and the sender's name, guest or account ID and IP address. Staff look at it only to handle a report or a moderation decision.</p>
+<p class="quiet">Deleted after 14 days. The lines saved with a report (see <a href="#reports">Reports and appeals</a>) are kept with that report.</p>
+</dd>
+
+<dt id="discord">Playing inside Discord</dt>
+<dd>
+<p>When you start Retrocycles as an Activity in Discord, Discord asks whether to share your account with us. If you agree, it gives us your Discord user ID, your username and your Discord account's email address. The ID signs you in to the account linked to that Discord login (or makes one), as signing in with Discord on the site does. We keep the email address with your account when Discord has confirmed it and no other account uses it, and use it for account emails; for <a href="#news-emails">news emails</a> only if you turn them on. We don't receive your servers or your messages. Discord also lets us show what you are playing on your Discord profile.</p>
+<p>Everyone who joined the same launch plays in the same room. For that we keep Discord's ID for the launch, which room it went to and when it was last used; not who was in it. The page, its requests and your game traffic go through Discord's proxy, so Discord sees your connection to us, and we usually see Discord's address rather than yours.</p>
+<p class="quiet">Your Discord login is kept as long as your account exists, like any sign-in service. Discord's own <a href="https://discord.com/privacy">privacy policy</a> covers what it does with your data.</p>
+</dd>
+
+<dt>Usage statistics</dt>
+<dd>
+<p>The page sends us a few usage events, tied to your guest or account ID when you have one:</p>
+<ul>
+<li>that the page was opened, with the campaign link you came from, the website that linked to us (reduced to its domain), whether you are on a phone, tablet or computer, and your browser's family, such as Chrome or Firefox</li>
+<li>that you pressed Play, how long loading and connecting took, whether it worked, and whether your connection went through our relay</li>
+<li>when you first steered, when you started creating an account, and how long you played</li>
+<li>the round-trip time to each of our regions, and your ping and frame rate in the game</li>
+<li>that you copied a room's invite link</li>
+<li>the kind of error when the game breaks (for example "graphics context lost"), never the error's text</li>
+</ul>
+<p>When the page is opened, we look up the country and a rough area (about 55 km across) of the IP address it came from, and keep only those with the usage event; the address itself is not stored.</p>
+<p>We use them only to find out where the game is slow or fails to connect, and whether players return, so we can improve it. We don't store your IP address or your browser's full user agent with them. They never include anything you type (names, chat, emails or passwords).</p>
+<p>In the EU, Iceland, Liechtenstein, Norway, the UK and Switzerland (or when we cannot tell where you are), the page sends them only after you press Accept on the question it asks, the same one as for <a href="#google-analytics">Google Analytics</a>. If you decline, or don't answer, nothing is sent. Inside Discord and in posts on X the page doesn't ask, so for visitors from those countries it sends nothing there.</p>
+<p class="quiet">Deleted after 13 months. Not sent at all when your browser sends Global Privacy Control. An opt-out setting is planned; until then, write to us and we will exclude you.</p>
+</dd>
+
+<dt id="google-analytics">Google Analytics</dt>
+<dd>
+<p>The page also uses Google Analytics, which tells us how people find the game: the site or search that sent you, the campaign link, your country, device and browser, which pages you open, and a few moments of your visit: that you pressed Play, played a game, created an account or signed in (and how, for example with a password or Google), or copied an invite link. Google sets its cookies (<code>_ga</code>, <code>_ga_*</code>) to tell a returning browser from a new one. Advertising features are off: Google is told not to use this data for ads.</p>
+<p>In the EU, Iceland, Liechtenstein, Norway, the UK and Switzerland (or when we cannot tell where you are), Google's cookies are only set if you press Accept on the question the page asks. If you decline, Google still receives a page visit without cookies, which it cannot connect to you. You can change your answer at any time at <a href="../?cookies">retrocycles.io/?cookies</a>.</p>
+<p class="quiet">Not loaded at all when your browser sends Global Privacy Control. Google keeps Google Analytics data for 14 months. See <a href="https://policies.google.com/technologies/partner-sites">how Google uses information from sites that use its services</a>.</p>
+</dd>
+
+<dt>Security log</dt>
+<dd>
+<p>Account events: account created, signed in, failed sign-in (and why), locked out, password changed or reset, email confirmed, sign-in service linked or unlinked, session ended, signed out, guest saved or merged, handle changed, news emails turned on or off. Each with the time, your user ID and the IP address the request came from. Never passwords, tokens or email addresses.</p>
+<p class="quiet">Used to protect accounts and spot abuse. Kept {{auditRetention}}.</p>
+</dd>
+
+<dt>Email</dt>
+<dd>
+<p>We email you about your account: to confirm your address and to reset your password. Sent through {{emailProvider}}.</p>
+<p id="news-emails"><b>News emails</b>, only if you ask for them: tick "email me news" when you sign up, answer yes when your account asks you once, or turn them on in your account. They are sent occasionally, about new modes, events and game updates. Every one has a link to unsubscribe, and you can turn them off in your account at any time. We keep when and where you asked for them, and the words you agreed to, as proof of your consent; they go only to a confirmed email address.</p>
+<p class="quiet">We stop sending them as soon as you unsubscribe or turn them off. Signing in with Google or Discord never turns them on.</p>
+</dd>
+
+<dt id="reports">Reports and appeals</dt>
+<dd>
+<p>If you report a player or appeal a decision, we keep your message and what we decided, to handle it and to be consistent.</p>
+<p>A report from the game also saves the room's recent chat: up to the last 50 lines of the 10 minutes before it, with each sender's name and ID but not their IP address. Team and private lines are included only when the reporter or the reported player wrote or received them.</p>
+<p class="quiet">Kept for 2 years after the decision.</p>
+</dd>
+</dl>
+
+<h2 id="network">Your IP address</h2>
+<p>Your IP address is sent to our servers whenever you load the page or play. Here is how it is handled:</p>
+<ul>
+<li><b>The web server</b> keeps no access logs.</li>
+<li><b>The platform</b> holds it in memory for a minute to limit how fast requests come, and writes it into the security log and the chat log above.</li>
+<li><b>Game rooms</b>, like every Armagetron Advanced server, see it while you play, and their logs may record it.</li>
+<li><b>Our relay</b>: when a direct connection doesn't work, your game traffic goes through our relay server, which sees your address for that game and records it in its log.</li>
+<li>Our official rooms and the relay keep their logs {{serverLogRetention}}.</li>
+<li><b>Finding the closest servers</b>: to put you in a nearby game, the page measures the response time of a small request to each region we host in or are thinking of hosting in. For a region where we have no server yet, that request goes to our hosting provider Vultr's own test server in that data centre (for example <code>syd-au-ping.vultr.com</code> for Sydney), which sees your address as any website would. We keep only the times (milliseconds per region) with your guest or account, to place you in a game and to decide where to open servers.</li>
+<li><b>Maps</b> the game downloads come through our server from the community's map repository; we don't log them.</li>
+</ul>
+
+<h2 id="device">On your device</h2>
+<ul>
+<li><b>Cookies.</b> The platform's session cookie (<code>rc_session</code>) and, for the few minutes a Google or Discord sign-in takes, <code>rc_external</code>; both are needed for the service to work. <a href="#google-analytics">Google Analytics'</a> cookies (<code>_ga</code>, <code>_ga_*</code>) are set unless you decline them; in the EU, the UK and Switzerland, only after you accept them. No advertising cookies.</li>
+<li><b>Browser storage.</b> The game keeps its settings, key bindings, your player name and downloaded maps in your browser. Only your player name leaves your device. The page also remembers that you have seen the one-line code of conduct, and your answer about Google Analytics' cookies.</li>
+</ul>
+
+<h2 id="share">Who else sees it</h2>
+<ul>
+<li><b>Vultr</b> hosts our servers, the database and its backups, in New Jersey, USA.</li>
+<li><b>{{emailProvider}}</b> sends our account emails.</li>
+<li><b>Google and Discord</b>, if you sign in with them: they learn that you signed in to us. Inside Discord, Discord also carries your connection to us (see <a href="#discord">Playing inside Discord</a>).</li>
+<li><b>Google</b>, through <a href="#google-analytics">Google Analytics</a>: your visits to the page, with or without its cookies as described there.</li>
+<li><b>Other players and room admins</b> see your name, your chat and your game in the room, as in any game.</li>
+<li><b>Authorities</b>, only when the law requires it.</li>
+</ul>
+<p>We don't sell or rent personal data, and we don't share it for advertising.</p>
+
+<h2 id="where">Where it is stored</h2>
+<p>In the United States, at Vultr in New Jersey. If you are outside the US, your data goes there. From the EU and the UK, we transfer it because that is needed to provide the service you ask for, and Vultr handles it under the European Commission's standard contractual clauses and the UK's addendum to them, which are part of its data processing agreement with us.</p>
+<p><b>Backups.</b> The database is backed up every night. Backups are kept 7 days on the server and 30 days on a second server in the same data centre. Deleted data remains in backups until they expire, after 30 days at most.</p>
+
+<h2 id="children">Children</h2>
+<p>Accounts are for players {{minimumAge}} and older. See <a href="../age/">age requirements</a>. If you think a child under {{minimumAge}} created an account or gave us personal information, write to {{contactEmail:mail}} and we will delete it.</p>
+
+<h2 id="rights">Your choices and rights</h2>
+<ul>
+<li><b>See and change.</b> Your profile shows your account, your email address and your sessions. You can change your password, unlink a sign-in service, sign out one session or all of them.</li>
+<li><b>Delete, export, correct.</b> Not in the game yet: write to {{contactEmail:mail}} from your account's email address (or give your guest ID) and we will do it within one month.</li>
+<li><b>News emails.</b> Off unless you turn them on. Unsubscribe from any of them, or turn them off in your account.</li>
+<li><b>Usage statistics.</b> Turn on Global Privacy Control in your browser, or write to us. Where the page asks, change your answer at <a href="../?cookies">retrocycles.io/?cookies</a>.</li>
+<li><b>Google Analytics' cookies.</b> Accept or decline them at <a href="../?cookies">retrocycles.io/?cookies</a>, at any time. Global Privacy Control turns Google Analytics off.</li>
+<li><b>Complain.</b> You can complain to the data protection authority where you live.</li>
+</ul>
+<p>Where the GDPR or UK GDPR applies, we use your data to provide the service you asked for (guest, account, sessions, progress), for our legitimate interests (the security log, backups, moderation), with your consent (usage statistics, Google Analytics' cookies and news emails), and where the law requires it.</p>
+
+<h2 id="changes">Changes</h2>
+<p>When this policy changes we will update it here, with a new effective date. If a change matters, we will say so on the site before it applies.</p>
+
+<h2 id="contact">Contact</h2>
+<p>{{operator}}, {{postalAddress}}. {{contactEmail:mail}}</p>
+
+</div>
+</main>
+<!--rc:foot-->
+</body>
+</html>

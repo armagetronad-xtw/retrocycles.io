@@ -1,0 +1,1169 @@
+/* The first minute: the connecting screen, the in-game
+   menu and the match summary (laid out on a 1536x1024 frame, so 1px of it is 1u). Same world as the
+   home screen: near-black grounds, square panels with the cell line (the friends panel's
+   idiom), Akshar labels, Overpass sentences. The cyan trail stays the home menu's (and the
+   summary's lap); a focused lane here fills near-black with a short ink bar at its left edge.
+   The connecting screen adds the player's own cycle and its wall, in the player's colour,
+   on black. */
+
+/* ---- the connecting screen (Connecting.tsx) -------------------------------- */
+
+/* the scene goes black behind it, through the canvas's own fade */
+body.is-stage:has(#stage.is-connect) { --scene-a: 0; }
+.stage.is-connect .stage-head { display: none; }
+
+.connect {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 220ms ease-out 120ms;
+}
+
+.stage.is-open .connect { opacity: 1; }
+
+/* the figure 8: the engine's clip (public/connect/NOTICE.txt), 400u square, its centre a
+   little above the middle. It was rendered white on black; multiplied by the player's
+   colour (the box's ground), the white takes that colour and the black stays black. The
+   lift keeps the wall's light once tinted */
+.eight {
+  position: absolute;
+  left: 50%;
+  top: 30vh;
+  width: calc(400 * var(--u));
+  height: calc(400 * var(--u));
+  transform: translate(-50%, -50%);
+  isolation: isolate;
+}
+
+/* the colour only once the clip has a frame (Connecting.tsx), never a bare square of it */
+.eight.is-shown { background: var(--player); }
+
+.eight-clip {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  mix-blend-mode: multiply;
+  filter: brightness(1.35) contrast(1.1);
+}
+
+/* the words: centred under the figure */
+.connect-say {
+  position: absolute;
+  left: 50%;
+  top: 55vh;
+  width: min(calc(820 * var(--u)), 88vw);
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.connect-room {
+  margin: calc(14 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.2;
+  letter-spacing: 0;
+  color: var(--ink-quiet);
+}
+
+/* one step at a time: a new one comes up from below as the old one leaves upward */
+.connect-step {
+  position: relative;
+  min-height: calc(92 * var(--u));
+}
+
+.connect-line { animation: step-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+.connect-line.is-leaving {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  animation: step-out 220ms cubic-bezier(0.5, 0, 0.8, 0.4) both;
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(calc(16 * var(--u))); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes step-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(calc(-16 * var(--u))); }
+}
+
+.connect-key {
+  margin: 0;
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: calc(44 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.connect-sentence {
+  margin: calc(16 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(22 * var(--u));
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: var(--ink-rest);
+  overflow-wrap: anywhere;
+}
+
+/* the room's message of the day in the sentence's place: the room's own line breaks, in ink
+   (it is to be read, not glanced at), a long one scrolls inside 22vh so the keys, the room and
+   ENTER PLAY keep their places; the thin cell-line scrollbar of the chat panel */
+.connect-sentence.is-message {
+  max-height: 22vh;
+  overflow-y: auto;
+  white-space: pre-line;
+  color: var(--ink);
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+/* the first keys as key cells (KeyCaps.tsx), centred under the step */
+.connect-keys {
+  margin: calc(40 * var(--u)) 0 0;
+  justify-content: center;
+}
+
+.connect-esc {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4.6vh;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.connect-esc-key { margin-right: calc(10 * var(--u)); color: var(--ink-rest); }
+/* ENTER PLAY before ESC CANCEL while the room's message is up */
+.connect-esc-act { margin-right: calc(40 * var(--u)); color: var(--ink); }
+
+@media (max-width: 760px) {
+  .eight { top: 28vh; width: 240px; height: 240px; }
+  .connect-say { top: 50vh; }
+  .connect-key { font-size: 30px; }
+  .connect-sentence { font-size: 17px; }
+  .connect-keys { margin-top: 28px; }
+  .connect-room { font-size: 13px; }
+}
+
+/* ---- panels over the game ---------------------------------------------------
+   The friends panel's idiom at the menu's scale: a square near-black ground that holds
+   the words over a moving, bright arena, the cell line round it, nothing lifted. */
+
+.gm-panel,
+.ms {
+  position: relative;
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.9);
+  font-family: var(--font-label);
+  color: var(--ink);
+}
+
+/* the lanes: the home menu's rows at the panel's scale; the focused one is solid ground
+   carries a 4u ink bar at its left edge (inset, so nothing spills), the rest sit on a
+   hairline */
+.lane {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(18 * var(--u));
+  width: 100%;
+  height: calc(86 * var(--u));
+  margin: 0;
+  padding: 0 calc(16 * var(--u)) 0 calc(34 * var(--u));
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: calc(40 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  white-space: nowrap;
+  transition: color 140ms ease-out;
+}
+
+.lane::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--hairline);
+  transition: opacity 140ms ease-out;
+}
+
+.lane:focus { outline: none; }
+.lane:focus,
+.lane:hover { color: var(--ink); font-weight: 600; }
+.lane:focus { background: rgba(4, 6, 9, 0.96); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.lane:focus::after { opacity: 0; }
+.lane:disabled { cursor: default; color: var(--ink-quiet); }
+
+/* the last lane of a panel closes on the panel's own edge, not a hairline */
+.gm-actions > .lane:last-of-type::after,
+.players li:last-child .lane::after { display: none; }
+
+.lane-small { height: calc(60 * var(--u)); font-size: calc(26 * var(--u)); }
+
+/* a lane that is a link out (the embed's OPEN FULL GAME): the drawn arrow after its words, quiet;
+   its hairline stays (the last-of-type rule above counts links apart from buttons) */
+.lane-out { text-decoration: none; }
+.lane-out-icon { flex: none; width: 0.62em; height: 0.62em; color: var(--ink-quiet); }
+.lane-out:hover .lane-out-icon,
+.lane-out:focus .lane-out-icon { color: var(--ink-rest); }
+.gm-actions > a.lane:last-of-type::after { display: block; }
+
+/* ---- the in-game menu (GameMenu.tsx) -------------------------------------- */
+
+/* the game dims behind it and goes on */
+body.is-game.is-menu-game { --scene-a: 0.45; }
+
+.gm {
+  position: absolute;
+  left: calc(40 * var(--u));
+  top: 26.5vh;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(8 * var(--u));
+  max-width: calc(100vw - 80 * var(--u));
+}
+
+.gm[hidden] { display: none; }
+
+/* its way out (SheetClose, the sheets' close cell): after the panels, at their top; a press
+   off the menu that would lose a typed report note flashes it instead (App.tsx) */
+.gm > .sheet-x { order: 99; margin: 0; }
+.gm[data-nudge] > .sheet-x { border-color: var(--ink); background: rgba(14, 18, 25, 0.98); color: var(--ink); transition-duration: 60ms; }
+.gm[data-nudge] > .sheet-x .sheet-x-key { color: var(--ink-rest); }
+
+.gm-actions {
+  flex: none;
+  width: calc(388 * var(--u));
+  padding: calc(26 * var(--u)) calc(28 * var(--u)) calc(12 * var(--u)) calc(32 * var(--u));
+}
+
+.gm-players {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: calc(441 * var(--u));
+  max-height: calc(68vh);
+  padding: calc(26 * var(--u)) calc(30 * var(--u)) calc(30 * var(--u));
+}
+
+.gm-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+  padding-bottom: calc(14 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.gm-head-title {
+  margin: 0;
+  font-size: calc(32 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+.gm-head-room {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(18 * var(--u));
+  line-height: 1;
+  color: var(--ink-quiet);
+}
+
+/* the players: swatch | name | you/bot | score; a long room scrolls inside the panel */
+.players {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+.lane.prow {
+  display: grid;
+  grid-template-columns: calc(30 * var(--u)) minmax(0, 1fr) calc(56 * var(--u));
+  gap: calc(20 * var(--u));
+  height: calc(62 * var(--u));
+  padding: 0 calc(4 * var(--u)) 0 calc(4 * var(--u));
+  font-size: calc(26 * var(--u));
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--ink);
+}
+
+.lane.prow:focus,
+.lane.prow:hover { font-weight: 600; }
+
+.prow-swatch { display: block; width: calc(30 * var(--u)); height: calc(30 * var(--u)); }
+.prow-who { display: flex; align-items: baseline; min-width: 0; }
+.prow-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow-mark { flex: none; margin-left: calc(18 * var(--u)); font-size: calc(19 * var(--u)); font-weight: 400; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-quiet); }
+.prow-score { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* the invite's answer under the actions: the link itself in ink, selectable in one go,
+   so it can be copied by hand when the clipboard refuses */
+.gm-notice {
+  margin: 0 0 calc(18 * var(--u));
+  max-width: 52ch;
+  font-family: var(--font-ui);
+  font-size: calc(16 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-rest);
+}
+
+.gm-notice.gm-invite { margin: calc(20 * var(--u)) 0 0; }
+.invite-link { display: block; margin-top: calc(6 * var(--u)); color: var(--ink); user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
+
+/* a player's card and the report: one wider panel in the actions' place */
+.gm-card {
+  width: calc(560 * var(--u));
+  max-height: 68vh;
+  overflow-y: auto;
+  padding: calc(36 * var(--u)) calc(32 * var(--u)) calc(34 * var(--u));
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+.gm-who { display: flex; align-items: center; gap: calc(20 * var(--u)); margin-bottom: calc(22 * var(--u)); }
+.gm-who-swatch { flex: none; width: calc(40 * var(--u)); height: calc(40 * var(--u)); }
+
+.gm-name {
+  margin: 0;
+  font-size: calc(36 * var(--u));
+  font-weight: 600;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.gm-name-key { font-weight: 400; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-rest); }
+
+.gm-sub {
+  margin: calc(6 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.4;
+  color: var(--ink-quiet);
+}
+
+/* the facts: key at the left, value at the right, a hairline under each */
+.gm-facts { margin: 0 0 calc(18 * var(--u)); padding: 0; }
+
+.gm-facts .fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+  padding: calc(14 * var(--u)) 0 calc(12 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.gm-facts .fact-key {
+  font-family: var(--font-label);
+  font-size: calc(16 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  cursor: default;
+}
+
+.gm-facts .fact-val { margin: 0; font-size: calc(22 * var(--u)); line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.gm-say {
+  margin: calc(8 * var(--u)) 0 calc(14 * var(--u)) calc(34 * var(--u));
+  max-width: 44ch;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-quiet);
+}
+
+
+/* the report: the reasons as small lanes, the chosen one in ink with YES after it */
+.gm-report .gm-sub { margin-bottom: calc(14 * var(--u)); }
+.reasons { margin: 0 0 calc(10 * var(--u)); padding: 0; list-style: none; }
+.lane.reason.is-chosen { color: var(--ink); }
+.lane.reason.is-chosen::before {
+  content: "yes";
+  order: 2;
+  margin-left: auto;
+  font-size: calc(15 * var(--u));
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ink-quiet);
+}
+
+.gm .field { grid-template-columns: calc(110 * var(--u)) minmax(0, 1fr); padding: calc(14 * var(--u)) 0 calc(18 * var(--u)) calc(34 * var(--u)); }
+.gm .field::before { display: none; }
+.gm .field-key { font-family: var(--font-label); font-size: calc(16 * var(--u)); letter-spacing: 0.08em; color: var(--ink-quiet); }
+.gm .field:focus-within .field-key { color: var(--ink); }
+.gm .field-input { font-family: var(--font-label); font-size: calc(20 * var(--u)); line-height: 1.25; color: var(--ink-rest); }
+.gm .field-input:focus { color: var(--ink); }
+.gm .field-input::placeholder { color: var(--ink-quiet); }
+.gm .field-hint { color: var(--ink-quiet); }
+
+/* failure: the reversed cell, square, black on the failed red */
+.gm .cell { font-family: var(--font-label); font-size: calc(17 * var(--u)); text-transform: none; background: var(--failed); }
+
+@media (max-width: 760px) {
+  .gm { left: 4%; right: 4%; top: 14vh; flex-direction: column; max-width: none; }
+  /* in a column the way out stands above the panels, at the right */
+  .gm > .sheet-x { order: -1; align-self: flex-end; }
+  .gm-actions,
+  .gm-players,
+  .gm-card { width: auto; }
+  .gm-actions { padding-top: 40px; }
+  .gm-players { max-height: 40vh; }
+  .lane { height: 56px; font-size: 26px; }
+  .lane.prow { height: 46px; font-size: 18px; }
+}
+
+/* a short view (a phone on its side, the embed): the menu starts near the top and its lanes
+   follow the height, so the last lane and the players stay on screen; the players scroll */
+@media (max-height: 540px) {
+  .gm { top: 4vh; max-height: 92vh; }
+  .gm .lane { height: clamp(38px, 10.5vh, 56px); font-size: 22px; }
+  .gm .lane.prow { height: 36px; font-size: 17px; }
+  .gm-actions { padding-top: 10px; padding-bottom: 6px; }
+  .gm-players { max-height: 92vh; padding-top: 12px; }
+}
+
+/* ---- the match summary (Rewards.tsx) ---------------------------------------
+   A column at the right edge over the live game for 8 s (centred, it would cover the
+   player's cycle as the next match counts down), between the fps at the top right and the
+   HUD along the bottom. No focus, no keys; the panel takes the pointer so resting on it holds
+   it, its cross closes it, the save button acts. The place is the hero in the game's bitmap
+   face, the facts are rows under hairlines, a guest's save is the one solid thing, the trail
+   lapping it. */
+
+.gameframe > .rewards { pointer-events: none; }
+
+.ms {
+  position: absolute;
+  right: 3.4vw;
+  top: 47vh;
+  width: calc(440 * var(--u));
+  max-width: calc(100vw - 32px);
+  max-height: 70vh;
+  overflow: hidden;
+  transform: translateY(-50%);
+  padding: calc(22 * var(--u)) calc(26 * var(--u)) calc(24 * var(--u)) calc(38 * var(--u));
+  background: rgba(8, 11, 16, 0.92);
+  pointer-events: auto;
+  animation: ms-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes ms-in {
+  from { opacity: 0; transform: translate(calc(24 * var(--u)), -50%); }
+  to { opacity: 1; transform: translateY(-50%); }
+}
+
+/* the head: the panel's name, the close cell at its right end (the sheets' cross, without
+   their esc: Esc is the game's menu here) */
+.ms-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+  margin-right: calc(-10 * var(--u));
+}
+
+.ms-x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(40 * var(--u));
+  height: calc(40 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.6);
+  color: var(--ink-quiet);
+  cursor: pointer;
+  transition: color 140ms ease-out, border-color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.ms-x:hover { border-color: var(--ink-quiet); background: rgba(14, 18, 25, 0.98); color: var(--ink); }
+.ms-x-icon { display: block; width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+
+.ms-head {
+  margin: 0;
+  font-size: calc(22 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* the place: the bitmap face at 5x its 24px em (an 80u cap), bold like the wordmark */
+.ms-place {
+  display: flex;
+  align-items: baseline;
+  gap: calc(22 * var(--u));
+  margin: calc(22 * var(--u)) 0 calc(20 * var(--u));
+  line-height: 1;
+}
+
+.ms-place-n {
+  font-family: var(--font-display);
+  font-size: calc(120 * var(--u));
+  line-height: 0.75;
+  letter-spacing: calc(-7 * var(--u));
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: calc(4 * var(--u)) 0 0 currentColor;
+}
+
+/* a place that ends in a dot (German, Polish: "2."): the face is monospaced and the dot sits at
+   the left of its cell, so the empty rest of the cell is taken back */
+.ms-place-n.is-dot { margin-right: -0.28em; }
+
+.ms-place-of {
+  font-size: calc(24 * var(--u));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* the facts: key at the left in quiet caps, value at the right, a hairline over each */
+.ms-facts { margin: 0; }
+
+.ms-fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: calc(16 * var(--u));
+  padding: calc(15 * var(--u)) calc(4 * var(--u)) calc(14 * var(--u));
+  border-top: 1px solid var(--hairline);
+}
+
+.ms-fact dt {
+  font-size: calc(21 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.ms-val {
+  margin: 0;
+  font-size: calc(25 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ms-note {
+  margin-left: calc(12 * var(--u));
+  font-size: calc(20 * var(--u));
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--ink-quiet);
+}
+
+.ms-note::before { content: "("; }
+.ms-note::after { content: ")"; }
+
+
+/* the level's line under its row: what is done in ink, the rest dim, the count under its end */
+.ms-bar { flex: 1 0 100%; margin: calc(14 * var(--u)) 0 0; }
+.ms .xp-bar { width: 100%; height: calc(8 * var(--u)); margin: 0; }
+.ms .xp-bar-done { background: var(--ink); }
+.ms .xp-bar-rest { background: rgba(142, 156, 176, 0.24); }
+
+.ms-xp {
+  display: block;
+  margin-top: calc(10 * var(--u));
+  text-align: right;
+  font-size: calc(17 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* a guest's save: the one solid thing on the panel, the trail running laps round it */
+.ms-save { margin-top: calc(10 * var(--u)); padding-top: calc(14 * var(--u)); }
+.ms-save-act { position: relative; margin-left: calc(-12 * var(--u)); }
+
+.ms-button {
+  display: block;
+  width: 100%;
+  height: calc(56 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--ink);
+  color: #000;
+  cursor: pointer;
+  pointer-events: auto;
+  font-family: var(--font-label);
+  font-size: calc(24 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background-color 140ms ease-out;
+}
+
+.ms-button:hover { background: #ffffff; }
+
+.ms-say {
+  margin: calc(16 * var(--u)) auto 0;
+  max-width: 40ch;
+  text-wrap: balance;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.45;
+  color: var(--ink-rest);
+}
+
+/* the lap: the home trail's light, a closed square round the button, a wall a little
+   under half its length running round it once every 2.4 s */
+.lap {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lap-path {
+  fill: none;
+  stroke: var(--trail);
+  stroke-width: calc(5 * var(--u));
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  stroke-dasharray: var(--wall) calc(var(--len) - var(--wall));
+  filter: drop-shadow(0 0 calc(2 * var(--u)) rgba(150, 236, 255, 0.9))
+    drop-shadow(0 0 calc(9 * var(--u)) rgba(47, 211, 255, 0.7));
+  animation: lap 2400ms linear infinite;
+}
+
+.lap-path.lap-core { stroke: #d8f8ff; stroke-width: calc(1.6 * var(--u)); filter: none; }
+
+@keyframes lap {
+  from { stroke-dashoffset: var(--len); }
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lap-path { animation: none !important; stroke-dashoffset: 0; }
+}
+
+@media (max-width: 760px) {
+  /* the right half's column: the player's cycle waits at the centre during the countdown */
+  .ms { right: 12px; top: 44vh; width: min(340px, calc(100vw - 24px)); padding: 16px 16px 18px 22px; }
+  .ms-top { margin-right: -6px; }
+  .ms-x { width: 36px; height: 36px; }
+  .ms-x-icon { width: 18px; height: 18px; }
+  .ms-button { height: 46px; font-size: 17px; }
+  .ms-place { margin: 16px 0 14px; }
+  .ms-place-n { font-size: 64px; letter-spacing: -4px; text-shadow: 2px 0 0 currentColor; }
+}
+
+/* the in-game menu's friends view: a friend is a player row, their where
+   in the mark; a row whose room cannot be joined reads quiet; the chosen one's two acts under it */
+.gm-friends .mf-row:disabled { color: var(--ink-rest); }
+.gm-friends .mf-row .prow-mark { text-transform: none; letter-spacing: 0.01em; }
+.mf-acts { padding: calc(6 * var(--u)) 0 calc(10 * var(--u)) calc(50 * var(--u)); }
+.mf-acts .gm-say { margin: 0 0 calc(6 * var(--u)); }
+
+/* ---- duels ---------------------------------------------------------- */
+
+/* a duel link waiting for its opponent (Connecting.tsx): the link in a field's well where the
+   keys sentence would be, its act at the well's right end as the password's FORGOT? (COPY
+   LINK, COPIED for 2 s; SHARE LINK on a phone); the link itself selectable in one go */
+.connect-link {
+  display: flex;
+  align-items: center;
+  width: min(calc(640 * var(--u)), 100%);
+  height: calc(56 * var(--u));
+  margin: calc(40 * var(--u)) auto 0;
+  padding-left: calc(20 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  text-align: left;
+}
+
+.connect-link-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-label);
+  font-size: calc(22 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.connect-link-act {
+  flex: none;
+  align-self: stretch;
+  margin: 0 0 0 calc(12 * var(--u));
+  padding: 0 calc(20 * var(--u)) 0 calc(18 * var(--u));
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(18 * var(--u));
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  white-space: nowrap;
+  transition: color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.connect-link-act:hover { color: var(--ink); }
+.connect-link-act:focus-visible { outline: none; color: var(--ink); background: rgba(14, 18, 25, 0.98); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+/* the press lands at once (no transition), then COPIED holds the lane's lit state for its 2 s:
+   the ground and the ink bar a focused lane has, so the act reads as done from across the well */
+.connect-link-act:active { color: var(--ink); background: rgba(24, 30, 40, 1); transition: none; }
+.connect-link-act[data-done] { color: var(--ink); background: rgba(14, 18, 25, 0.98); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+/* SHARE next to COPY INVITE LINK: the cell line parts them, no gap */
+.connect-link-act + .connect-link-act { margin-left: 0; }
+
+/* PLAY WHILE YOU WAIT: out of the wait into a Quick Play, the link left open (its arrival comes
+   over the game). A lined act under the well, the cell line's idiom; the focused lane's ink bar */
+.connect-link-play {
+  display: block;
+  height: calc(52 * var(--u));
+  margin: calc(28 * var(--u)) auto 0;
+  padding: 0 calc(28 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(17 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  transition: color 140ms ease-out, border-color 140ms ease-out, background-color 140ms ease-out;
+}
+.connect-link-play:hover { color: var(--ink); border-color: var(--ink-quiet); }
+.connect-link-play:focus-visible { outline: none; color: var(--ink); background: rgba(14, 18, 25, 0.98); box-shadow: inset calc(4 * var(--u)) 0 0 var(--ink); }
+.connect-link-play:active { color: var(--ink); background: rgba(24, 30, 40, 1); transition: none; }
+
+/* the opponent arrived: the one moment the waiting screen raises its voice, the sentence in ink */
+.connect[data-step="arrived"] .connect-sentence { color: var(--ink); }
+
+/* under the well: how long the link stays open (minutes), quiet; on a touch device CANCEL, the
+   way back Esc gives a keyboard (a lined act at the thumb's size) */
+.connect-link-left {
+  margin: calc(12 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.3;
+  color: var(--ink-quiet);
+}
+.connect-link-cancel {
+  display: block;
+  min-width: 140px;
+  height: 44px;
+  margin: 18px auto 0;
+  padding: 0 24px;
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+.connect-link-cancel:active { border-color: var(--ink); background: var(--ink); color: #000; }
+
+/* a challenge over the game (Duel.tsx): at the top right under the menu cell, out of the
+   arena's middle and clear of the chat (top left) and the gauges (bottom), as the match
+   summary's panel: the cell line on near-black, the quiet head with the seconds left at its
+   right, the sentence, ACCEPT solid and DECLINE lined; the acts take the pointer only */
+.duel {
+  position: absolute;
+  top: calc(max(10px, var(--discord-safe-area-inset-top, env(safe-area-inset-top))) + 54px);
+  right: max(10px, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+  width: calc(400 * var(--u));
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: calc(20 * var(--u)) calc(26 * var(--u)) calc(22 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.92);
+  font-family: var(--font-label);
+  color: var(--ink);
+  animation: duel-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* a challenge to me arrives with one call for the eye: its line goes ink twice, then rests (no glow,
+   no motion of the panel itself; nothing under reduced motion) */
+.duel[data-kind="incoming"] { animation: duel-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both, duel-call 1100ms 320ms ease-out both; }
+
+@keyframes duel-call {
+  0%, 45%, 100% { border-color: var(--cell-line); }
+  18%, 68% { border-color: var(--ink); }
+}
+
+/* on the home screen (a friend's challenge, or mine to a friend: Duel.tsx home) the same panel stands
+   at the lower left under the menu, its line on the menu's, clear of the sheets that hang at the
+   right edge; not dimmed with the menu behind a sheet (profile.css) */
+.rewards-duel-home {
+  position: absolute;
+  left: calc(64 * var(--u));
+  bottom: 7vh;
+  z-index: 1;
+}
+.rewards-duel-home .duel { position: relative; top: auto; right: auto; }
+/* over the connecting screen (the stage, z 3, above the home frame): its own layer at the same corner */
+.rewards-duel-home.is-over-stage { position: fixed; z-index: 4; }
+
+/* a Discord Activity's touch cells stand down the right edge from 20 %: beside them */
+body.is-discord .duel { right: calc(max(10px, var(--discord-safe-area-inset-right, env(safe-area-inset-right))) + 54px); }
+
+@keyframes duel-in {
+  from { opacity: 0; transform: translateY(calc(-10 * var(--u))); }
+  to { opacity: 1; transform: none; }
+}
+
+.duel-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(16 * var(--u));
+  padding-bottom: calc(14 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.duel-head {
+  margin: 0;
+  font-size: calc(22 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* what a screen reader hears, once per state (Duel.tsx said()); nothing on screen */
+.duel-said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.duel-left {
+  font-size: calc(17 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-quiet);
+}
+
+.duel-say {
+  margin: calc(18 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(20 * var(--u));
+  line-height: 1.35;
+  text-wrap: balance;
+  color: var(--ink-rest);
+}
+
+/* the last ten seconds of a challenge to me: waiting on you, so waiting amber (the state colour) */
+.duel-left.is-low { color: var(--waiting); font-weight: 600; }
+
+/* what the duel is, under the challenge: the pool's format (rooms/private-sumo.cfg) */
+.duel-format {
+  margin: calc(8 * var(--u)) 0 0;
+  font-size: calc(15 * var(--u));
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.duel-say.is-who,
+.duel-say.is-ink { color: var(--ink); }
+.duel-say.is-who { display: flex; align-items: center; gap: calc(14 * var(--u)); }
+.duel-swatch { flex: none; width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+
+.duel-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(10 * var(--u));
+  margin-top: calc(20 * var(--u));
+}
+
+/* the server browser's acts at the panel's scale: ACCEPT the solid one (ink, black words,
+   white on hover), DECLINE and CANCEL lined (well ground, the cell line) */
+.duel-act {
+  flex: 1 1 0;
+  min-width: calc(120 * var(--u));
+  height: calc(52 * var(--u));
+  margin: 0;
+  padding: 0 calc(18 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(4, 6, 9, 0.96);
+  cursor: pointer;
+  pointer-events: auto;
+  font-family: var(--font-label);
+  font-size: calc(20 * var(--u));
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  transition: color 140ms ease-out, border-color 140ms ease-out, background-color 140ms ease-out;
+}
+
+.duel-act:hover { border-color: var(--ink-quiet); color: var(--ink); }
+.duel-act.is-solid { border-color: var(--ink); background: var(--ink); color: #000; font-weight: 600; }
+.duel-act.is-solid:hover { border-color: #fff; background: #fff; }
+.duel-act[data-done] { color: var(--ink); border-color: var(--ink-quiet); }
+.duel-act:disabled { cursor: default; color: var(--ink-quiet); border-color: var(--cell-line); background: rgba(4, 6, 9, 0.96); }
+.duel-acts:has(.duel-act:only-child) .duel-act { flex: 0 0 auto; min-width: calc(160 * var(--u)); }
+
+.duel-foot {
+  margin: calc(14 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.4;
+  color: var(--ink-quiet);
+}
+
+/* Esc opens the menu, where the same choice waits as lanes (no keys on a touch device) */
+.duel-keys {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  margin: calc(14 * var(--u)) 0 0;
+  padding-top: calc(14 * var(--u));
+  border-top: 1px solid var(--hairline);
+  font-size: calc(16 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+/* a challenge to me heads the in-game menu's actions (GameMenu.tsx): who, in ink, and the
+   seconds left, under it ACCEPT and DECLINE as lanes; a hairline then RESUME as always */
+.gm-duel { margin: 0 0 calc(10 * var(--u)); }
+.gm-duel-say {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  margin: calc(4 * var(--u)) 0 0 calc(34 * var(--u));
+  font-family: var(--font-ui);
+  font-size: calc(19 * var(--u));
+  line-height: 1.35;
+  color: var(--ink);
+}
+.gm-duel-say > span { text-wrap: balance; }
+.gm-duel .gm-say { margin-top: calc(6 * var(--u)); text-wrap: balance; }
+
+/* under the two lanes, two quiet acts: no more from them, no challenges at all; the focused one
+   ink with a 3u bar before it (the Settings filter line's mark) */
+.gm-duel-more {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(28 * var(--u));
+  padding: calc(4 * var(--u)) 0 calc(2 * var(--u)) calc(34 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+.gm-duel-act {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(16 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  transition: color 140ms ease-out;
+}
+.gm-duel-act:hover,
+.gm-duel-act:focus-visible { color: var(--ink); outline: none; }
+.gm-duel-act:focus-visible::before {
+  content: "";
+  position: absolute;
+  left: calc(-12 * var(--u));
+  top: 50%;
+  width: calc(3 * var(--u));
+  height: calc(16 * var(--u));
+  transform: translateY(-50%);
+  background: var(--ink);
+}
+.gm-duel-act:disabled { cursor: default; color: var(--ink-quiet); opacity: 0.6; }
+.gm-duel-notice { margin: 0 0 calc(14 * var(--u)) calc(34 * var(--u)); }
+
+/* the duel's own room (DuelRoom.tsx): high in the arena, right of the chat's column (its lines run to
+   640u from 7.73%: centred, the card covered their ends), the panel idiom; the VS card on arrival,
+   the result at the match's end, the opponent gone; only the acts take the pointer */
+.duel-room {
+  position: absolute;
+  top: 13vh;
+  left: max(66%, calc(7.73% + 640 * var(--u) + 24 * var(--u) + 240 * var(--u)));
+  width: calc(480 * var(--u));
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  padding: calc(18 * var(--u)) calc(28 * var(--u)) calc(22 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.92);
+  font-family: var(--font-label);
+  text-align: center;
+  color: var(--ink);
+  animation: duel-room-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes duel-room-in {
+  from { opacity: 0; transform: translate(-50%, calc(-10 * var(--u))); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
+/* the head: 1V1 (or 1V1 OVER) centred, the room's seconds at the right while it waits for a rematch */
+.duel-room-top {
+  position: relative;
+  padding-bottom: calc(12 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+.duel-room-top .duel-left { position: absolute; right: 0; bottom: calc(14 * var(--u)); }
+.duel-room .duel-foot.is-ink { color: var(--ink); }
+.duel-room .duel-act.is-solid[data-asked] { border-color: var(--cell-line); background: rgba(4, 6, 9, 0.96); color: var(--ink-rest); }
+
+/* VS: the two players on one line, each with their swatch on the outside, the word between */
+.duel-vs {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: calc(18 * var(--u));
+  margin: calc(18 * var(--u)) 0 0;
+}
+.duel-vs-side { display: flex; align-items: center; justify-content: flex-end; gap: calc(12 * var(--u)); min-width: 0; }
+.duel-vs-side.is-them { justify-content: flex-start; }
+.duel-vs-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(34 * var(--u));
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+.duel-vs-swatch { flex: none; width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+.duel-vs-word {
+  font-size: calc(18 * var(--u));
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+.duel-room .duel-format { margin-top: calc(14 * var(--u)); }
+
+/* the result: who won in Akshar caps, the score after it in tabular figures */
+.duel-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: calc(20 * var(--u));
+  margin: calc(16 * var(--u)) 0 0;
+  font-size: calc(34 * var(--u));
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.duel-score { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-rest); }
+.duel-score-dash { margin: 0 calc(8 * var(--u)); color: var(--ink-quiet); }
+.duel-room .duel-say { margin-top: calc(16 * var(--u)); text-wrap: balance; color: var(--ink); }
+.duel-room .duel-foot { text-wrap: balance; }
+.duel-room .duel-acts { justify-content: center; }
+.duel-room .duel-act { flex: 0 1 calc(190 * var(--u)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .duel, .duel[data-kind="incoming"], .duel-room { animation: none; }
+}
+
+@media (max-width: 760px) {
+  /* the whole link shows on a phone (its code checked by eye), wrapping inside the well */
+  .connect-link { height: auto; min-height: 48px; padding-left: 14px; }
+  .connect-link-text { padding: 10px 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; font-size: 15px; }
+  .connect-link-left { font-size: 13px; }
+  .connect-link-play { height: 44px; margin-top: 16px; padding: 0 20px; font-size: 14px; }
+  .connect-link-act { padding: 0 14px; font-size: 13px; }
+  /* the left side: the player's cycle waits at the centre during the countdown */
+  .duel { width: min(320px, calc(100vw - 20px)); padding: 14px 16px 16px; }
+  .rewards-duel-home { left: 6%; right: 6%; bottom: calc(env(safe-area-inset-bottom) + 88px); }
+  .rewards-duel-home .duel { width: 100%; }
+  .duel-head { font-size: 15px; }
+  .duel-left { font-size: 13px; }
+  .duel-say { margin-top: 12px; font-size: 16px; }
+  .duel-swatch { width: 18px; height: 18px; }
+  .duel-acts { margin-top: 14px; gap: 8px; }
+  .duel-act { min-width: 0; height: 44px; padding: 0 12px; font-size: 15px; }
+  .duel-foot { font-size: 13px; }
+  .gm-duel-say { font-size: 16px; }
+  .gm-duel-act { font-size: 13px; }
+  .duel-format { font-size: 12px; }
+  /* a phone: the chat spans the width at the top, so the card stands below its lines, centred */
+  .duel-room { top: 34vh; left: 50%; padding: 12px 14px 14px; }
+  .duel-vs-name { font-size: 20px; }
+  .duel-vs-swatch { width: 16px; height: 16px; }
+  .duel-vs-word { font-size: 12px; }
+  .duel-result { font-size: 22px; gap: 12px; }
+}

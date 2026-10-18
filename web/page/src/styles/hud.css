@@ -1,0 +1,499 @@
+/* The page's HUD (components/CycleHud.tsx; the HUD style MODERN, on every device): the rail at the
+   foot of the screen, between where the thumbs and their turn buttons go, and the danger edge
+   round the screen. Sizes in px, a step larger outside the compact view (a desktop window).
+   Rubber's colours are the state colours' hues: the cells show
+   what is left, green while there is plenty, amber from half, red near the end (a
+   blend where the browser has color-mix); the ten cells and the figure carry the same news for
+   anyone who cannot tell the colours apart. Nothing in the top right corner (the menu cell's). */
+
+.cyclehud {
+  --meter-ok: var(--online);
+  --meter-warn: var(--waiting);
+  --meter-danger: var(--failed);
+  --meter: var(--meter-ok);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-label);
+  color: var(--ink);
+}
+
+.cyclehud[data-tier="warn"] { --meter: var(--meter-warn); }
+.cyclehud[data-tier="danger"] { --meter: var(--meter-danger); }
+
+.hud-edge {
+  position: absolute;
+  inset: 0;
+  transition: box-shadow 200ms ease-out;
+}
+
+.hud-rail {
+  position: absolute;
+  left: 50%;
+  bottom: max(12px, var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)));
+  width: min(360px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  padding: 8px 10px 9px;
+  background: rgba(4, 6, 9, 0.62);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+body.is-embed .hud-rail { width: min(320px, calc(100vw - 32px)); }
+
+/* a desktop window (not the compact view): a step larger, a little higher off the foot */
+body:not(.is-compact) .hud-rail { width: 420px; bottom: 22px; padding: 10px 14px 11px; gap: 7px; }
+body:not(.is-compact) .hud-key { font-size: 12px; }
+body:not(.is-compact) .hud-pct { font-size: 24px; }
+body:not(.is-compact) .hud-pct small { font-size: 13px; }
+body:not(.is-compact) .hud-cells { height: 15px; }
+body:not(.is-compact) .hud-brake .hud-key { width: 64px; }
+body:not(.is-compact) .hud-bar { height: 6px; }
+body:not(.is-compact) .hud-speed { font-size: 17px; min-width: 60px; }
+body:not(.is-compact) .hud-speed small { font-size: 11px; }
+
+.hud-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hud-key {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+.hud-pct {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-rest);
+}
+
+.hud-pct small { margin-left: 1px; font-size: 12px; font-weight: 500; }
+
+.cyclehud[data-tier="danger"] .hud-row:first-child .hud-key,
+.cyclehud[data-tier="danger"] .hud-pct { color: var(--meter-danger); }
+
+/* one cell a unit of the server's rubber (CycleHud rubberCells), sized by flex-grow: a fractional
+   last unit is a narrower cell */
+.hud-cells {
+  display: flex;
+  gap: 3px;
+  height: 13px;
+}
+
+.hud-cells i { flex: 1 1 0; min-width: 0; }
+
+/* the ticks inside a bigger cell, over the fill, like a health bar's */
+.hud-cells u {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: rgba(4, 6, 9, 0.55);
+}
+
+.hud-cells i,
+.hud-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(142, 156, 176, 0.22);
+}
+
+.hud-cells b,
+.hud-bar b {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.hud-cells b { background: var(--meter); }
+
+/* the blend CycleHud computes for the share left (--meter-mix), green to amber to red */
+@supports (background: color-mix(in oklab, red, blue)) {
+  .hud-cells b { background: var(--meter-mix, var(--meter)); }
+}
+
+.hud-brake { align-items: center; gap: 10px; margin-top: 2px; }
+/* no brake to press (touch buttons without a brake key, Discord on a phone): the speed alone, at the right */
+.cyclehud[data-brakes="none"] .hud-brake { justify-content: flex-end; }
+.cyclehud[data-brakes="none"] .hud-brake .hud-key,
+.cyclehud[data-brakes="none"] .hud-brake .hud-bar { display: none; }
+.hud-brake .hud-key { flex: none; width: 58px; color: var(--ink-quiet); }
+.hud-bar { flex: 1 1 auto; height: 5px; }
+.hud-bar b { background: var(--ink-rest); }
+
+.cyclehud[data-brake="on"] .hud-brake .hud-key { color: var(--ink); }
+.cyclehud[data-brake="on"] .hud-bar b { background: var(--ink); }
+.cyclehud[data-brake="low"] .hud-brake .hud-key { color: var(--meter-warn); }
+.cyclehud[data-brake="low"] .hud-bar b { background: var(--meter-warn); }
+
+.hud-speed {
+  flex: none;
+  min-width: 52px;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-rest);
+}
+
+.hud-speed small {
+  margin-left: 3px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+/* ---- the respawn countdown (components/RespawnCountdown.tsx) --------------------------------
+   While the player's cycle is dead in a room that brings it back the game view goes gray and dim:
+   one layer over the whole frame whose backdrop-filter takes the colour out of
+   the canvas and the page's HUD under it (the touch buttons come later in the frame, so they stay
+   lit and pressable); a translucent gray where backdrop-filter is missing. RESPAWN IN in the
+   label face over the seconds in the game's own face, large, in the middle of the screen, each
+   new figure dropping in. JOINING IN (a room holding a joining player's first cycle) is the same
+   words in the same place but no gray: nothing died, the player is about to ride; there the
+   words stand on a near-black cell, since the arena under them is lit. Takes no pointer. */
+
+.gameframe > .respawn,
+.respawn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.respawn[data-kind="respawn"] {
+  -webkit-backdrop-filter: grayscale(1) brightness(0.55);
+  backdrop-filter: grayscale(1) brightness(0.55);
+  animation: respawn-gray 260ms ease-out both;
+}
+
+@supports not ((backdrop-filter: grayscale(1)) or (-webkit-backdrop-filter: grayscale(1))) {
+  .respawn[data-kind="respawn"] { background: rgba(38, 40, 44, 0.62); }
+}
+
+@keyframes respawn-gray {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* the count's measures, shared with the embed's OPEN FULL GAME, which stands above it (embed.css) */
+:root {
+  --respawn-label: clamp(14px, 2.6vmin, 24px);
+  --respawn-gap: clamp(4px, 1.2vmin, 12px);
+  --respawn-count: clamp(72px, 19vmin, 176px);
+}
+
+.respawn-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--respawn-gap);
+  white-space: nowrap;
+}
+
+.respawn[data-kind="joining"] .respawn-cell {
+  padding: clamp(12px, 2.4vmin, 24px) clamp(20px, 4vmin, 40px);
+  background: rgba(4, 6, 9, 0.62);
+}
+
+.respawn-label {
+  font-family: var(--font-label);
+  font-size: var(--respawn-label);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+.respawn-count {
+  min-width: 1ch;
+  font-family: var(--font-display);
+  font-size: var(--respawn-count);
+  line-height: 1;
+  text-align: center;
+  color: var(--ink);
+  animation: respawn-tick 320ms ease-out;
+}
+
+@keyframes respawn-tick {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-edge { transition: none; }
+  .respawn-count,
+  .respawn[data-kind="respawn"] { animation: none; }
+}
+
+/* ---- the touch controls (components/TouchControls.tsx) ------------------------------------
+   Under the thumbs: at each side a turn at the foot and a double turn above it, square cells in
+   the panels' idiom (a near-black ground the arena shows through, the cell line), the chevrons
+   in ink; pressed, the cell fills with ink. The rail stands between the two sides; upright, the
+   buttons stand above it. The menu is one small cell at the top right. */
+
+.touch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.touch-side {
+  position: absolute;
+  bottom: max(16px, var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.touch-side.is-left { left: max(16px, var(--discord-safe-area-inset-left, env(safe-area-inset-left))); }
+.touch-side.is-right { right: max(16px, var(--discord-safe-area-inset-right, env(safe-area-inset-right))); }
+
+.touch-btn,
+.touch-menu {
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--cell-line);
+  border-radius: 0;
+  background: rgba(8, 11, 16, 0.42);
+  color: var(--ink-rest);
+  cursor: pointer;
+}
+
+.touch-btn { width: 104px; height: 96px; }
+.touch-btn.is-double { height: 60px; }
+
+.touch-btn[data-down] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #000;
+}
+
+.touch-menu {
+  position: absolute;
+  top: max(10px, var(--discord-safe-area-inset-top, env(safe-area-inset-top)));
+  right: max(10px, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+  width: 44px;
+  height: 44px;
+}
+
+.touch-menu:active,
+.touch-menu[data-down] { background: var(--ink); color: #000; }
+
+/* the chat cell, left of the menu; a square dot at its corner while chat came in unread */
+.touch-menu.is-chat { right: calc(max(10px, var(--discord-safe-area-inset-right, env(safe-area-inset-right))) + 52px); }
+
+/* Discord on a phone: Discord's own bar (leave, people) sits over the top edge, right above
+   where the two cells stand, so a thumb going for the menu or the chat could leave the Activity.
+   There they stand at the right edge, clear of that bar and above the turn keys in every
+   layout: the menu a fifth of the way down, the chat under it (stacked, a bit higher) */
+body.is-discord .touch-menu { top: max(20%, calc(var(--discord-safe-area-inset-top, env(safe-area-inset-top)) + 72px)); }
+body.is-discord .touch-menu.is-chat {
+  top: calc(max(20%, calc(var(--discord-safe-area-inset-top, env(safe-area-inset-top)) + 72px)) + 52px);
+  right: max(10px, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+}
+
+.touch-menu.is-chat[data-unread]::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  background: var(--ink);
+}
+
+/* a short landscape phone: a little smaller, the pair still clear of the rail */
+@media (max-height: 380px) and (orientation: landscape) {
+  .touch-btn { width: 96px; height: 84px; }
+  .touch-btn.is-double { height: 54px; }
+}
+
+/* upright: the rail keeps the foot; the buttons stand above it (its three rows,
+   the brake bar's too) */
+@media (orientation: portrait) {
+  .touch-side { bottom: calc(max(12px, var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom))) + 98px); }
+  .touch-btn { width: 96px; height: 88px; }
+  .touch-btn.is-double { height: 56px; }
+}
+
+/* ---- the keyboard layouts (touchLayout.ts): one row at the foot, closer to the desktop keys ---
+   keyboard: two turn-left keys, the brake, two turn-right keys (d f, space, j k); alternating:
+   left, right, the brake, left, right. The turn keys sit out at the edges under the thumbs. The
+   brake takes all the middle and is one key a little taller than a turn key, the rail in its
+   upper part (the meters share the brake key's height, the whole not much
+   taller than the turn keys; a press anywhere on it, meters included, brakes, since the rail
+   takes no pointer). The rail packs into two lines there: on its side RUBBER, the cells and the
+   figure, then the brake bar and the speed; upright, unlabelled, the figure and the speed, the
+   cells, the bar. Each turn key reaches higher than it shows (an invisible ::before), so a
+   thumb that drifts up still turns. The sizes live on body.is-touch-keys, where the rail reads
+   them too. */
+body.is-touch-keys {
+  --row-h: 76px;        /* a turn key */
+  --brake-extra: 10px;  /* how much taller the brake key is */
+  --meters: 42px;       /* the rail's part of the brake key, at its top */
+  --reach: 44px;        /* a turn key's hit area above it */
+  --key: 100px;         /* a turn key's width */
+  --row-gap: 8px;
+  --row-left: max(16px, var(--discord-safe-area-inset-left, env(safe-area-inset-left)));
+  --row-right: max(16px, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+  --row-bottom: max(14px, var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)));
+}
+
+.touch-row {
+  position: absolute;
+  left: var(--row-left);
+  right: var(--row-right);
+  bottom: var(--row-bottom);
+  display: grid;
+  grid-template-columns: var(--key) var(--key) 1fr var(--key) var(--key);
+  align-items: end;
+  gap: var(--row-gap);
+}
+
+.touch-btn.is-row { position: relative; width: auto; height: var(--row-h); }
+
+/* the turn keys' reach: above them, and over half the gap at each side */
+.touch-btn.is-row:not(.is-brake)::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--row-gap) / -2);
+  right: calc(var(--row-gap) / -2);
+  bottom: 100%;
+  height: var(--reach);
+}
+
+.touch-btn.is-brake {
+  height: calc(var(--row-h) + var(--brake-extra));
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.touch-brake-word {
+  display: flex;
+  align-items: center;
+  height: calc(var(--row-h) + var(--brake-extra) - var(--meters));
+  font-family: var(--font-label);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* the rail in the brake key's upper part: the brake column's box, less the key's line */
+body.is-touch-keys .hud-rail {
+  left: calc(var(--row-left) + 2 * var(--key) + 2 * var(--row-gap) + 1px);
+  right: calc(var(--row-right) + 2 * var(--key) + 2 * var(--row-gap) + 1px);
+  bottom: calc(var(--row-bottom) + var(--row-h) + var(--brake-extra) - var(--meters));
+  width: auto;
+  height: var(--meters);
+  transform: none;
+  padding: 7px 12px 0;
+  background: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "label cells pct" "bar bar speed";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 5px;
+}
+
+/* the rail's rows open into that grid (the markup stays CycleHud's) */
+body.is-touch-keys .hud-rail > .hud-row { display: contents; }
+body.is-touch-keys .hud-rail .hud-row:first-child .hud-key { grid-area: label; font-size: 10px; }
+body.is-touch-keys .hud-rail .hud-pct { grid-area: pct; font-size: 15px; }
+body.is-touch-keys .hud-rail .hud-pct small { font-size: 10px; }
+body.is-touch-keys .hud-rail .hud-cells { grid-area: cells; height: 9px; gap: 2px; }
+body.is-touch-keys .hud-rail .hud-bar { grid-area: bar; height: 4px; }
+body.is-touch-keys .hud-rail .hud-speed { grid-area: speed; min-width: 0; font-size: 12px; }
+body.is-touch-keys .hud-rail .hud-speed small { font-size: 9px; }
+/* the key's own word names the brake bar */
+body.is-touch-keys .hud-brake .hud-key { display: none; }
+
+/* held, the brake lights its line and its word, not a solid fill over the arena */
+.touch-btn.is-brake[data-down] {
+  border-color: var(--ink);
+  background: rgba(242, 244, 247, 0.16);
+  color: var(--ink);
+}
+
+.touch-btn.is-brake.is-off { opacity: 0.35; }
+
+/* a phone on its side: a lower row, so it leaves the arena its height */
+@media (max-height: 430px) and (orientation: landscape) {
+  body.is-touch-keys { --row-h: 60px; --brake-extra: 10px; --meters: 40px; --key: 92px; }
+}
+
+/* upright: narrower turn keys; the rail unlabelled in three lines, the figure and the speed,
+   the cells, the bar */
+@media (orientation: portrait) {
+  body.is-touch-keys { --row-h: 84px; --brake-extra: 12px; --meters: 52px; --key: 56px; }
+  body.is-touch-keys .hud-rail {
+    padding: 8px 8px 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "pct speed" "cells cells" "bar bar";
+    row-gap: 5px;
+  }
+  body.is-touch-keys .hud-rail .hud-row:first-child .hud-key { display: none; }
+}
+
+@media (orientation: portrait) and (max-width: 380px) {
+  body.is-touch-keys { --key: 52px; }
+  body.is-touch-keys .hud-speed small { display: none; }
+}
+
+/* ---- the desktop menu cell (components/MenuCell.tsx) ---------------------------------------
+   The touch menu cell for a mouse: the same 44 px square at the top right, quieter at rest (the
+   arena shows through, the lines dim), lit under the pointer, ink while pressed. */
+
+.menu-cell {
+  position: absolute;
+  top: max(10px, var(--discord-safe-area-inset-top, env(safe-area-inset-top)));
+  right: max(10px, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--cell-line);
+  border-radius: 0;
+  background: rgba(8, 11, 16, 0.42);
+  color: var(--ink-quiet);
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color 120ms, border-color 120ms, background-color 120ms;
+}
+
+.menu-cell:hover { border-color: var(--ink-rest); color: var(--ink); background: rgba(14, 18, 25, 0.9); }
+.menu-cell:active { border-color: var(--ink); background: var(--ink); color: #000; }
+.menu-cell:focus { outline: none; }

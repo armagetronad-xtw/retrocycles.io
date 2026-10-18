@@ -1,0 +1,1686 @@
+/* Retrocycles play page -- the styling. The menu is
+   part of the arena, big rows down the left over a dark falloff, a cyan lightcycle trail
+   around the focused row (the one accent and the one glow), square thin-lined status cells
+   at the top right, the game's own renderer everywhere else. Positions are viewport
+   percentages of a 1536x1024 layout; type, gaps and strokes scale from one unit, --u, which
+   is 1px at its 1536px width. The stages, the Profile and the in-game menu below still carry the earlier
+   Cracktro layout with the new signal and faces, until their own redesigns.
+   Faces are self-hosted from public/fonts (see NOTICE.txt there); no font CDN is
+   contacted. The wordmark's face is the game's own: textures/font.png turned into a
+   TrueType font by tools/atlas2font.py (ASCII only, 16 px cap on a 24 px em). */
+
+@import "./faces.css";
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--void);
+  color: var(--ivory);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  /* the bitmap face is drawn as squares; where the platform honours it, no smoothing */
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+::selection { background: var(--trail); color: #000; }
+
+/* the browser's own ring is replaced by the world's own device, the caret (below);
+   what has no caret of its own keeps a ring in amber */
+:focus:not(:focus-visible) { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--trail);
+  outline-offset: calc(3 * var(--u));
+}
+
+/* ---- the floor ---------------------------------------------------------- */
+
+/* #canvas in index.html: the wasm client renders the attract scene and the game on
+   it (API.md). It is the bottom layer; it never scrolls and never re-mounts. */
+.scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  background: #000;
+  outline: none;
+  opacity: var(--scene-a, 1);
+}
+
+/* ---- the layer the page draws ------------------------------------------- */
+
+.frame {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+}
+
+/* ---- the home screen ---------------------------------------------------------
+   The menu is part of the arena: big rows down the left like lanes of the grid, over a dark falloff from
+   the left edge, and a lightcycle trail around the selected row. The wordmark top left,
+   the status bar top right, the game's own scene everywhere else. Positions are
+   viewport percentages; sizes are --u (1px at 1536). */
+
+/* the falloff: the left side darkens so the menu reads over the moving arena */
+.frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* dark to just past the rows' far edge, gone by about half the
+     width, and it opens again below the menu so the arena shows in the bottom-left corner;
+     the opening follows the menu's real bottom edge (--menu-bottom, Strip.tsx), so three
+     rows get a shorter shadow than seven */
+  background: linear-gradient(
+    90deg,
+    rgba(4, 6, 9, 0.94) 0%,
+    rgba(4, 6, 9, 0.86) 26%,
+    rgba(4, 6, 9, 0.5) 33%,
+    rgba(4, 6, 9, 0.16) 41%,
+    rgba(4, 6, 9, 0) 50%
+  );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(var(--menu-bottom, 72vh) + 24 * var(--u)),
+    transparent calc(var(--menu-bottom, 72vh) + 190 * var(--u))
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(var(--menu-bottom, 72vh) + 24 * var(--u)),
+    transparent calc(var(--menu-bottom, 72vh) + 190 * var(--u))
+  );
+}
+
+/* ---- the mark ------------------------------------------------------------ */
+
+/* RETROCYCLES in the game's own bitmap face at 4x its 24px em,
+   until the Retrocycles art is supplied */
+.mark {
+  margin: 0;
+  position: absolute;
+  left: 3.7%;
+  top: 8.3vh;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: calc(108 * var(--u));
+  line-height: 1;
+  letter-spacing: calc(-8 * var(--u));
+  text-transform: uppercase;
+  color: var(--ink);
+  /* bitmap bold: the glyphs drawn again about one font pixel to the right, the way bitmap
+     faces were emboldened, for a dense, heavy mark */
+  text-shadow: calc(4 * var(--u)) 0 0 currentColor;
+  white-space: nowrap;
+}
+
+/* ---- the status bar ------------------------------------------------------- */
+
+/* square cells with a thin line, top right: the player first, then friends and settings */
+.status {
+  position: absolute;
+  right: 1.9%;
+  top: 3.4vh;
+  display: flex;
+  gap: calc(12 * var(--u));
+}
+
+.status-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: calc(50 * var(--u));
+  margin: 0;
+  padding: 0 calc(16 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.78);
+  color: var(--ink-rest);
+  font-family: var(--font-label);
+  cursor: pointer;
+  transition: border-color 140ms ease-out, color 140ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.status-cell:hover,
+.status-cell:focus-visible { border-color: var(--ink-quiet); color: var(--ink); }
+.status-cell:disabled { cursor: default; }
+
+.chip { gap: calc(14 * var(--u)); text-align: left; min-width: calc(152 * var(--u)); }
+
+.chip-swatch {
+  width: calc(26 * var(--u));
+  height: calc(26 * var(--u));
+  flex: none;
+  background: var(--player);
+}
+
+.chip-who { display: flex; flex-direction: column; gap: calc(3 * var(--u)); }
+
+.chip-name {
+  max-width: calc(180 * var(--u));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(18 * var(--u));
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.chip-sub {
+  font-size: calc(13 * var(--u));
+  line-height: 1.1;
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}
+
+.chip-sub.chip-unsaved { color: var(--waiting); }
+
+.status-icon { justify-content: center; min-width: calc(52 * var(--u)); padding: 0 calc(13 * var(--u)); gap: calc(8 * var(--u)); }
+.status-glyph { width: calc(24 * var(--u)); height: calc(24 * var(--u)); }
+.status-count { font-size: calc(18 * var(--u)); color: var(--ink); }
+
+/* ---- the menu ------------------------------------------------------------- */
+
+/* the rows: 74u lanes from x 64u to 470u, a hairline under each like the floor grid;
+   the trail (an SVG over the whole menu) wraps the focused one */
+.home-menu {
+  position: absolute;
+  left: 0;
+  top: calc(22.7vh - 40 * var(--u));
+  padding-top: calc(40 * var(--u));
+  width: calc(520 * var(--u));
+}
+
+.strip {
+  position: relative;
+  margin-left: calc(64 * var(--u));
+  width: calc(406 * var(--u));
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: calc(24 * var(--u));
+  width: 100%;
+  height: calc(80 * var(--u));
+  margin: 0;
+  padding: 0 0 0 calc(32 * var(--u));
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: calc(44 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  white-space: nowrap;
+  transition: color 140ms ease-out;
+}
+
+/* the lane line under each row, short of the trail's far edge */
+.tile::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(100% - 22 * var(--u));
+  height: 1px;
+  background: var(--hairline);
+  transition: opacity 140ms ease-out;
+}
+
+.tile.is-focus::after { opacity: 0; }
+
+/* the labels stay as they are on hover and focus: the trail marks the row, and the
+   label does not change weight under the pointer */
+
+/* the selected lane is solid ground: the arena's walls never show inside the trail */
+.tile.is-focus { background: rgba(4, 6, 9, 0.9); }
+.tile:focus-visible { outline: none; }
+
+/* Quick Play is the way in: a taller lane, a step bigger and always lit, so it reads
+   first at a glance wherever the cycle is */
+.tile[data-mode="quick"] {
+  height: calc(100 * var(--u));
+  font-size: calc(56 * var(--u));
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* how many play now, after Quick Play */
+.tile-count {
+  font-size: calc(16 * var(--u));
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-quiet);
+}
+
+/* the trail: a lightcycle seen from above lapping the focused row, its wall fading out
+   behind it, the one lit thing on the page (menuCycle.ts draws it on this canvas, sized to
+   the menu by Strip.tsx). No glow: a crisp wall and a lit core */
+.trail {
+  position: absolute;
+  z-index: 1; /* over the focused lane's ground, so the whole wall shows */
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+/* the line under the menu: a quiet note, or a failure as a reversed cell */
+.tile-note {
+  position: absolute;
+  margin: 0;
+  left: calc(36 * var(--u));
+  top: calc(100% + 18 * var(--u));
+  max-width: 44ch;
+  font-family: var(--font-label);
+  font-size: calc(17 * var(--u));
+  line-height: 1.3;
+}
+
+.tile-note:not(.is-quiet) {
+  display: inline-block;
+  padding: calc(5 * var(--u)) calc(10 * var(--u)) calc(4 * var(--u));
+  background: var(--failed);
+  color: #000;
+}
+
+.tile-note.is-quiet { color: var(--ink-quiet); }
+.tile-note[hidden] { display: none; }
+
+/* the documents line (Docs.tsx): about, conduct, privacy, terms, at the bottom right on
+   the audio line's height, in the rear of the label plane. It is the frame's, so it is
+   gone behind a stage and in the game. Dim at rest (links: 4.5:1 at any width), ivory
+   with the small caret before it on hover or focus, like the chip. */
+.home-foot {
+  position: absolute;
+  right: 3.83%;
+  top: 93vh;
+  display: flex;
+  align-items: center;
+  gap: calc(32 * var(--u));
+}
+
+.docs-line {
+  display: flex;
+  gap: calc(26 * var(--u));
+}
+
+.docs-link {
+  position: relative;
+  font-family: var(--font-label);
+  font-weight: 400;
+  font-size: calc(14 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink-quiet);
+  transition: color 180ms ease-out;
+}
+
+.docs-link:hover,
+.docs-link:focus-visible { color: var(--ink); }
+.docs-link:focus-visible { outline: none; }
+
+.docs-link::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: calc(-2 * var(--u));
+  margin-right: calc(10 * var(--u));
+  width: calc(12 * var(--u));
+  height: calc(20 * var(--u));
+  background: var(--trail);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.docs-link:focus-visible::before { opacity: 1; }
+
+/* the community Discord server, the line's last item (CommunityLink.tsx): a status cell, with
+   more weight than the links, in the corner. It is centred on the links and
+   takes no height from the line (negative block margins), so they stay where they were. The
+   Discord mark, the name over its online count (the green of a friend online), an arrow that
+   says it leaves the page; the mark takes Discord's Blurple only when the cell is pointed at. */
+.community-cell {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  height: calc(50 * var(--u));
+  margin: calc(-18 * var(--u)) 0;
+  padding: 0 calc(14 * var(--u)) 0 calc(15 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.78);
+  color: var(--ink-rest);
+  font-family: var(--font-label);
+  text-decoration: none;
+  transition: border-color 140ms ease-out, color 140ms ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.community-cell:hover,
+.community-cell:focus-visible { border-color: var(--ink-quiet); color: var(--ink); outline: none; }
+.community-cell:focus-visible { border-color: var(--trail); box-shadow: 0 0 0 1px var(--trail); }
+
+.community-mark {
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  flex: none;
+  fill: currentColor;
+  transition: fill 140ms ease-out;
+}
+
+.community-cell:hover .community-mark,
+.community-cell:focus-visible .community-mark { fill: #5865f2; }
+
+.community-who { display: flex; flex-direction: column; gap: calc(3 * var(--u)); }
+
+.community-name {
+  font-size: calc(17 * var(--u));
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.community-sub {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  font-size: calc(13 * var(--u));
+  line-height: 1.1;
+  color: var(--ink-quiet);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.community-sub.is-online::before {
+  content: "";
+  width: calc(7 * var(--u));
+  height: calc(7 * var(--u));
+  flex: none;
+  border-radius: 50%;
+  background: var(--online);
+}
+
+.community-out {
+  align-self: flex-start;
+  margin-top: calc(9 * var(--u));
+  width: calc(10 * var(--u));
+  height: calc(10 * var(--u));
+  flex: none;
+  fill: none;
+  stroke: var(--ink-quiet);
+  stroke-width: 1.4;
+  transition: stroke 140ms ease-out, transform 140ms ease-out;
+}
+
+.community-cell:hover .community-out,
+.community-cell:focus-visible .community-out { stroke: var(--ink); transform: translate(1px, -1px); }
+
+body.is-console .community-cell,
+body.is-profile .community-cell,
+body.is-settings .community-cell,
+body.is-friends .community-cell { visibility: hidden; }
+
+/* ---- loading -------------------------------------------------------------- */
+
+/* The bundle is ~6 MB: loading is a state. The mark's loading runs as a line of
+   amber under it; the queue waits in the rear plane. */
+.mark-load {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-10 * var(--u));
+  height: calc(4 * var(--u));
+  transform-origin: left;
+  display: none;
+}
+
+.mark-load::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--trail);
+  transform-origin: left center;
+  transform: scaleX(var(--load, 0));
+  transition: transform 200ms linear;
+}
+
+body.is-loading .mark-load { display: block; }
+body.is-loading .tile { pointer-events: none; }
+body.is-loading .trail { opacity: 0; }
+/* a Discord launch on its way into Quick Play: the wordmark and its (full) load bar, no menu */
+body.is-launch .frame > :not(.mark) { visibility: hidden; }
+body.is-launch .mark-load { display: block; }
+
+/* ---- the chosen mode, pulled forward -------------------------------------- */
+
+/* The chosen line travels from its place in the queue to the head of the stage
+   (a transform Stage.tsx measures, 380 ms); the rest of the queue fades into the
+   void, the body appears beneath the head, the scene dims behind it. Nothing is
+   enclosed: the stage is the same void with the lines rearranged. */
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+}
+
+.stage-head {
+  position: absolute;
+  left: 7.73%;
+  top: 16vh;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(24 * var(--u));
+}
+
+.stage-caret {
+  flex: none;
+  width: calc(24 * var(--u));
+  height: calc(48 * var(--u));
+  margin-top: calc(12 * var(--u));
+  background: var(--amber);
+  box-shadow: 0 0 calc(6 * var(--u)) color-mix(in srgb, var(--amber) 70%, transparent),
+    inset 0 0 calc(8 * var(--u)) rgba(255, 220, 120, 0.55);
+  opacity: 0;
+  transition: opacity 200ms ease-out 220ms;
+}
+
+.stage.is-open .stage-caret { opacity: 1; }
+
+.stage-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-front);
+  line-height: 1;
+  letter-spacing: var(--track-front);
+  text-transform: uppercase;
+  color: var(--ivory);
+  white-space: nowrap;
+  transform-origin: 0 0;
+  transform: translate(var(--fx, 0px), var(--fy, 0px));
+  transition: transform 380ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.stage.is-open .stage-title { transform: none; }
+
+.stage-sub {
+  margin: calc(16 * var(--u)) 0 0;
+  font-family: var(--font-ui);
+  font-size: calc(19 * var(--u));
+  line-height: 1.4;
+  color: var(--dim);
+  opacity: 0;
+  transition: opacity 200ms ease-out 200ms;
+}
+
+.stage-body {
+  position: absolute;
+  left: 7.73%;
+  right: 7.73%;
+  top: 30vh;
+  bottom: 8vh;
+  opacity: 0;
+  transition: opacity 200ms ease-out 220ms;
+  overflow: hidden;
+}
+
+.stage.is-open .stage-sub,
+.stage.is-open .stage-body { opacity: 1; }
+/* with nothing in it (the connecting screen, the boards) it lies over their middle: clicks
+   must reach what is drawn under it (the duel link's COPY LINK never got one) */
+.stage-body:empty { pointer-events: none; }
+
+/* ---- the connection steps ------------------------------------------------- */
+
+.pane { height: 100%; display: flex; flex-direction: column; }
+.pane[hidden] { display: none; }
+
+.ladder { margin: 0; padding: 0; list-style: none; }
+
+.ladder li {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: calc(28 * var(--u));
+  padding: calc(14 * var(--u)) 0 calc(14 * var(--u)) calc(44 * var(--u));
+  color: var(--ash);
+  transition: color 200ms ease-out;
+}
+
+.ladder li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(14 * var(--u));
+  width: calc(14 * var(--u));
+  height: calc(26 * var(--u));
+  background: var(--amber);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.ladder-key {
+  flex: none;
+  width: calc(400 * var(--u));
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-rear);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* the sentences are small text: never dimmer than --dim (4.8:1), whatever the step */
+.ladder-say {
+  font-family: var(--font-ui);
+  font-size: calc(18 * var(--u));
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+.ladder li.is-now .ladder-say { color: var(--ivory); }
+
+.ladder li.is-done { color: var(--dim); }
+.ladder li.is-now { color: var(--ivory); }
+.ladder li.is-now::before { opacity: 1; }
+
+/* ---- the server list ----------------------------------------------------- */
+
+/* a board: fixed columns, tabular figures, no dividers; the chosen row carries the
+   caret and comes forward to ivory */
+.list-head,
+.row {
+  display: grid;
+  grid-template-columns: 1fr calc(190 * var(--u)) calc(140 * var(--u)) calc(150 * var(--u));
+  gap: calc(18 * var(--u));
+  align-items: baseline;
+}
+
+.list-head {
+  padding: 0 0 calc(16 * var(--u)) calc(44 * var(--u));
+  flex: none;
+}
+
+.col {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ash);
+  white-space: nowrap;
+  transition: color 180ms ease-out;
+}
+
+.col:hover { color: var(--grey); }
+.col.is-sort { color: var(--amber); }
+
+/* the sorted column: a small amber block after the head, low for descending and
+   raised for ascending */
+.col.is-sort::after {
+  content: "";
+  display: inline-block;
+  width: calc(8 * var(--u));
+  height: calc(8 * var(--u));
+  margin-left: calc(10 * var(--u));
+  background: var(--amber);
+  vertical-align: baseline;
+}
+.col.is-sort.is-asc::after { vertical-align: calc(8 * var(--u)); }
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ash) transparent;
+}
+
+.list::-webkit-scrollbar { width: calc(8 * var(--u)); }
+.list::-webkit-scrollbar-track { background: transparent; }
+.list::-webkit-scrollbar-thumb { background: var(--ash); }
+
+.row {
+  position: relative;
+  padding: calc(12 * var(--u)) 0 calc(12 * var(--u)) calc(44 * var(--u));
+  font-size: calc(18 * var(--u));
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 180ms ease-out;
+}
+
+.row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: calc(12 * var(--u));
+  width: calc(14 * var(--u));
+  height: calc(26 * var(--u));
+  background: var(--amber);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.row-name {
+  font-family: var(--font-display);
+  font-size: var(--size-rear);
+  line-height: 1;
+  color: var(--grey);
+  transition: color 180ms ease-out;
+}
+
+.row-desc {
+  display: block;
+  margin-top: calc(6 * var(--u));
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  letter-spacing: 0;
+  line-height: 1.35;
+  color: var(--dim);
+}
+
+.row-num { font-variant-numeric: tabular-nums; font-family: var(--font-display); font-size: var(--size-small); }
+.row-none { color: var(--ash); font-family: var(--font-display); font-size: var(--size-small); }
+
+.row:hover,
+.row.is-on { color: var(--grey); }
+.row:hover .row-name,
+.row.is-on .row-name { color: var(--ivory); }
+.row.is-on::before { opacity: 1; }
+
+.list-foot {
+  flex: none;
+  margin: calc(20 * var(--u)) 0 0 calc(44 * var(--u));
+  max-width: 78ch;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.honest {
+  margin: 0 0 0 calc(44 * var(--u));
+  max-width: 40ch;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-rear);
+  line-height: 1.5;
+  color: var(--grey);
+}
+
+/* a ban (the platform refused the login token): the stage stays up and says so. The
+   reversed cell with until when and why, one sentence, then the code of conduct and its
+   appeals section as the documents line's links (a new tab); Esc closes the stage */
+.ban-pane { margin-left: calc(44 * var(--u)); }
+.ban-pane .cell { margin-top: 0; }
+
+.ban-say {
+  margin: calc(18 * var(--u)) 0 0;
+  max-width: 62ch;
+  font-family: var(--font-ui);
+  font-size: calc(18 * var(--u));
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+.ban-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(18 * var(--u)) calc(44 * var(--u));
+  margin: calc(28 * var(--u)) 0 0;
+}
+/* ---- form rows, facts and actions (the stages' earlier idiom) ------------------
+   Once the Profile's, which moved to profile.css. Still used by the
+   in-game menu's report (.field, .fact) and the offer panel (.act). */
+
+/* what just happened: one plane back, announced (role=status) */
+.notice {
+  margin: 0 0 calc(24 * var(--u));
+  max-width: 62ch;
+  font-family: var(--font-ui);
+  font-size: calc(18 * var(--u));
+  line-height: 1.4;
+  color: var(--grey);
+}
+
+.notice[hidden] { display: none; }
+
+.view-head { margin: 0 0 calc(16 * var(--u)); }
+
+/* a handle or a name inside a caps title stays as written */
+.as-written { text-transform: none; }
+
+.view-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-rear);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ivory);
+}
+
+.view-say {
+  margin: calc(12 * var(--u)) 0 0;
+  max-width: 62ch;
+  font-family: var(--font-ui);
+  font-size: calc(18 * var(--u));
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+/* a form row: key | field; the field's hint and failure beneath it */
+.field {
+  position: relative;
+  display: grid;
+  grid-template-columns: calc(280 * var(--u)) minmax(0, 1fr);
+  gap: calc(28 * var(--u));
+  align-items: baseline;
+  padding: calc(9 * var(--u)) 0;
+}
+
+.field::before {
+  content: "";
+  position: absolute;
+  left: calc(-44 * var(--u));
+  top: calc(7 * var(--u));
+  width: calc(14 * var(--u));
+  height: calc(26 * var(--u));
+  background: var(--amber);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.field:focus-within::before { opacity: 1; }
+
+.field-key {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 180ms ease-out;
+}
+
+.field:focus-within .field-key { color: var(--ivory); }
+
+.field-val { min-width: 0; }
+
+.field-input {
+  display: block;
+  width: 100%;
+  max-width: calc(560 * var(--u));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--grey);
+  caret-color: var(--amber);
+  transition: color 180ms ease-out;
+}
+
+.field-input::placeholder { color: var(--ash); opacity: 1; }
+.field-input:focus { outline: none; color: var(--ivory); }
+/* the browser's autofill wash is a fill: keep the void */
+.field-input:-webkit-autofill,
+.field-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--grey);
+  -webkit-box-shadow: 0 0 0 1000px var(--void) inset;
+  box-shadow: 0 0 0 1000px var(--void) inset;
+  transition: background-color 99999s;
+}
+
+.field-hint {
+  margin: calc(6 * var(--u)) 0 0;
+  max-width: 76ch;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.hint-id { color: var(--grey); }
+
+/* failure: the reversed cell (black on the failed red, the display face), under the field or
+   under the form's action */
+.cell {
+  display: inline-block;
+  margin: calc(10 * var(--u)) 0 0;
+  padding: calc(4 * var(--u)) calc(8 * var(--u)) calc(2 * var(--u));
+  max-width: 60ch;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1.25;
+  text-transform: uppercase;
+  background: var(--failed);
+  color: #000;
+}
+
+.cell-block { display: table; margin-top: calc(18 * var(--u)); }
+
+/* the shared-computer checkbox: a real checkbox, drawn as its answer */
+.check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.check-value {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--grey);
+  cursor: pointer;
+}
+
+.field-check.is-checked .check-value,
+.field-check:focus-within .check-value { color: var(--ivory); }
+
+/* actions: bare lines, the caret before the one with the focus */
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: calc(44 * var(--u));
+  row-gap: calc(18 * var(--u));
+  margin-top: calc(20 * var(--u));
+}
+
+.acts-small { margin-top: calc(22 * var(--u)); }
+
+.act:disabled { color: var(--ash); cursor: default; }
+.act:disabled::before { opacity: 0; }
+
+.act.act-small { font-size: var(--size-small); }
+
+.act.act-small::before {
+  top: calc(-2 * var(--u));
+  margin-right: calc(16 * var(--u));
+  width: calc(12 * var(--u));
+  height: calc(20 * var(--u));
+}
+
+/* the sign-up's consent line (and the sign-in's, under its providers): a hint-sized
+   sentence; its links open the documents in a new tab */
+.consent {
+  margin: calc(18 * var(--u)) 0 0;
+  max-width: 76ch;
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.consent a,
+.field-hint a,
+.conduct-line a {
+  color: var(--grey);
+  text-decoration: underline;
+  text-decoration-color: var(--dim);
+  text-decoration-thickness: 1px;
+  text-underline-offset: calc(3 * var(--u));
+}
+
+.consent a:hover,
+.field-hint a:hover,
+.consent a:focus-visible,
+.field-hint a:focus-visible { color: var(--ivory); text-decoration-color: var(--ivory); }
+
+.providers-key {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.waiting {
+  margin: calc(18 * var(--u)) 0 0;
+  max-width: 62ch;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.4;
+  color: var(--grey);
+}
+
+/* home: the choices, each with its sentence beneath */
+.picks { margin: calc(8 * var(--u)) 0 0; padding: 0; list-style: none; }
+.pick + .pick { margin-top: calc(26 * var(--u)); }
+
+.pick-say {
+  margin: calc(10 * var(--u)) 0 0;
+  max-width: 62ch;
+  font-family: var(--font-ui);
+  font-size: calc(18 * var(--u));
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+/* an account's facts: key | value (+ its state) | action; no lines between */
+.facts { margin: 0 0 calc(34 * var(--u)); padding: 0; }
+
+.fact {
+  display: grid;
+  grid-template-columns: calc(220 * var(--u)) minmax(0, 1fr) auto;
+  gap: calc(28 * var(--u));
+  align-items: baseline;
+  padding: calc(9 * var(--u)) 0;
+}
+
+.fact-key,
+.fact-val,
+.fact-act { margin: 0; }
+
+.fact-key {
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.fact:focus-within .fact-key { color: var(--grey); }
+
+.fact-val { min-width: 0; overflow-wrap: anywhere; }
+
+.fact-text {
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1.25;
+  color: var(--grey);
+}
+
+.fact-none {
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  color: var(--ash);
+}
+
+/* the value's state (confirmed, not confirmed, suggested): a word the page says, so
+   the display face, two planes back */
+.fact-note {
+  margin-left: calc(18 * var(--u));
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1.25;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* sessions: the browser in the display face, when and how in Overpass beneath */
+.sessions { margin: 0; padding: 0; list-style: none; }
+
+.session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: calc(28 * var(--u));
+  align-items: baseline;
+  padding: calc(12 * var(--u)) 0;
+}
+
+.session-device {
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1.25;
+  color: var(--grey);
+}
+
+.session.is-current .session-device { color: var(--ivory); }
+
+.session-say {
+  grid-column: 1;
+  margin-top: calc(6 * var(--u));
+  font-family: var(--font-ui);
+  font-size: calc(15 * var(--u));
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.session-act { grid-column: 2; grid-row: 1; }
+
+/* ---- the game view -------------------------------------------------------- */
+
+/* The game renders on the canvas below; this layer carries the in-game menu. It takes no pointer events itself (the game reads
+   the mouse on the canvas); its children do. */
+.gameframe {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  background: transparent;
+  pointer-events: none;
+}
+
+.gameframe > * { pointer-events: auto; }
+/* the in-game menu (GameMenu.tsx) is first-minute.css's */
+
+
+.act {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-rear);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+.act::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: calc(-2 * var(--u));
+  margin-right: calc(24 * var(--u));
+  width: calc(14 * var(--u));
+  height: calc(30 * var(--u));
+  background: var(--amber);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.act:hover,
+.act:focus-visible { color: var(--ivory); outline: none; }
+.act:hover::before,
+.act:focus-visible::before { opacity: 1; }
+
+/* ---- shared behaviour ----------------------------------------------------- */
+
+/* the queue is gone, not merely invisible: it leaves the tab order too */
+body.is-stage .frame {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease-out, visibility 0s linear 180ms;
+}
+/* the scene recedes behind the chosen mode, it does not stop */
+.scene { transition: opacity 320ms ease-out; }
+body.is-stage { --scene-a: 0.22; }
+/* in the game the canvas is the whole picture */
+body.is-game { --scene-a: 1; }
+body.is-game .frame,
+body.is-game .stage { display: none; }
+body.is-loading .scene { opacity: var(--scene-a, 1); }
+
+.list:focus-visible { outline: none; }
+.list:focus-visible .row.is-on .row-name { color: var(--ivory); }
+.col:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: calc(6 * var(--u));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+}
+
+/* ---- the stages ----------------------------------------------------------------
+   The stages (connection steps, the server board, the Profile, the in-game menu) take the
+   home screen's signal and faces: the trail colour wherever the old amber marked the live thing, the
+   bitmap title bold like the wordmark, and the label face for steps, rows and heads. */
+:root { --amber: var(--trail); }
+
+.stage-title { text-shadow: calc(3 * var(--u)) 0 0 currentColor; letter-spacing: calc(-2 * var(--u)); }
+
+.ladder-key,
+.row-name,
+.honest {
+  font-family: var(--font-label);
+  font-weight: 500;
+  font-size: calc(30 * var(--u));
+  letter-spacing: 0.02em;
+}
+
+.ladder-key { text-transform: uppercase; }
+.row-name { color: var(--ink-rest); }
+.honest { font-size: calc(26 * var(--u)); line-height: 1.35; color: var(--ink-rest); }
+
+.col {
+  font-family: var(--font-label);
+  font-size: calc(15 * var(--u));
+  letter-spacing: 0.08em;
+  color: var(--ink-quiet);
+}
+
+/* ---- the other widths ---------------------------------------------------- */
+
+/* 1280-1920 is one composition: every box is a percentage and the type scales
+   from --u. The queue is already a stack, so narrow widths change sizes, not
+   the arrangement. */
+
+@media (max-width: 1100px) {
+  .stage-body { top: 32vh; }
+  .list-head,
+  .row { grid-template-columns: 1fr calc(110 * var(--u)) calc(96 * var(--u)) calc(90 * var(--u)); }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --u: clamp(0.9px, 0.26vw, 1.1px);
+    --size-front: 48px;
+    --size-rear: 24px;
+    --size-small: 24px;
+  }
+
+  .mark { left: 6%; top: 4vh; font-size: 48px; letter-spacing: -4px; text-shadow: 2px 0 0 currentColor; }
+
+  .status { left: 6%; right: 6%; top: 12vh; gap: 8px; }
+  .status-cell { height: 44px; padding: 0 10px; }
+  .chip { flex: 1 1 auto; min-width: 0; }
+  .chip-name { max-width: 100%; }
+  .status-icon { min-width: 44px; padding: 0 10px; }
+
+  /* the menu fills the phone's middle over the arena: the falloff darkens behind it and
+     is gone a little under its real bottom edge (--menu-bottom), so the arena shows below
+     it (it covered three quarters of the screen); a light band again at
+     the foot behind the documents line */
+  .frame::before {
+    -webkit-mask-image: none;
+    mask-image: none;
+    background: linear-gradient(
+      180deg,
+      rgba(4, 6, 9, 0.8) 0,
+      rgba(4, 6, 9, 0.72) calc(var(--menu-bottom, 60vh) + 12px),
+      rgba(4, 6, 9, 0) calc(var(--menu-bottom, 60vh) + 110px),
+      rgba(4, 6, 9, 0) calc(100svh - 130px),
+      rgba(4, 6, 9, 0.6) calc(100svh - 20px)
+    );
+  }
+
+  .home-menu { top: calc(12vh + 70px); width: 100%; }
+  .strip { margin-left: 6%; width: 88%; }
+  .tile { height: 58px; font-size: 30px; gap: 16px; padding-left: 18px; }
+  .tile[data-mode="quick"] { height: 70px; font-size: 38px; }
+
+  .tile-note { max-width: 100%; font-size: 15px; }
+  /* from the small viewport's foot (svh: the browser's bars shown), so a phone's toolbar
+     never covers it (94vh sat under iPhone Safari's bar) */
+  /* the foot is the screen's quiet bottom, one centred line (The Grid inline
+     with the documents, no cell over the arena upright): the documents, then The Grid as the
+     Discord mark alone (its name and count do not fit the width; the link's label says them);
+     longer words (de, fr, pl) may still wrap the line to a second row */
+  .home-foot {
+    left: 6%;
+    right: 6%;
+    top: auto;
+    bottom: calc(var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 12px);
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+  }
+  .docs-line { flex-wrap: wrap; justify-content: center; gap: 8px 22px; }
+  .docs-link { font-size: 13px; letter-spacing: 0.1em; }
+  .community-cell {
+    height: 36px;
+    min-width: 36px;
+    margin: -11px -9px;
+    padding: 0;
+    justify-content: center;
+    border: none;
+    background: none;
+  }
+  .community-cell:focus-visible { box-shadow: none; outline: 1px solid var(--trail); outline-offset: -4px; }
+  .community-mark { width: 19px; height: 19px; }
+  .community-who,
+  .community-out { display: none; }
+  /* the smallest phones (an iPhone SE): a tighter line, so the mark stays on it */
+  @media (max-width: 360px) {
+    .home-foot, .docs-line { column-gap: 15px; }
+    .docs-link { font-size: 12px; letter-spacing: 0.08em; }
+  }
+
+  .stage-head { left: 12%; top: 12vh; }
+  .stage-caret { width: 16px; height: 32px; margin-top: 8px; }
+  .stage-body { left: 12%; right: 5%; top: 26vh; bottom: 6vh; }
+  .honest { max-width: 100%; }
+  .ladder li { flex-direction: column; gap: calc(6 * var(--u)); }
+  .ladder-key { width: auto; }
+
+  .list-head,
+  .row { grid-template-columns: 1fr calc(76 * var(--u)) calc(70 * var(--u)); gap: calc(10 * var(--u)); }
+  .col-region,
+  .row-region { display: none; }
+
+
+  .chip-name,
+  .chip-sub { max-width: 70vw; }
+  .field { grid-template-columns: minmax(0, 1fr); gap: calc(8 * var(--u)); padding: calc(7 * var(--u)) 0; }
+  .fact { grid-template-columns: minmax(0, 1fr) auto; row-gap: calc(8 * var(--u)); }
+  .fact-key { grid-column: 1 / -1; }
+  .field-hint,
+  .pick-say,
+  .view-say,
+  .notice { font-size: calc(16 * var(--u)); }
+}
+
+/* ---- what a round and a match earned -------------- */
+
+/* over the running game, dismiss-free: no pointer events but the one action, no focus,
+   gone on their own. Nothing enclosed; the planes say what matters. */
+.gameframe > .rewards { pointer-events: none; }
+
+/* a round's XP: one quiet line low at the left, just above the game's HUD (its "Scores"
+   block sits at the left of the bottom edge, the gauges' needles rise right of it; the
+   game's centre messages run across three quarters down) */
+.xp-line {
+  position: absolute;
+  left: 7.73%;
+  bottom: 10.5vh;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: calc(24 * var(--u));
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--grey);
+  animation: rewards-in 220ms ease-out both;
+}
+
+/* a new level stands one plane forward */
+.xp-line-level { color: var(--ivory); }
+
+/* the match summary (Rewards.tsx MatchSummary) is first-minute.css's */
+
+/* the XP toward the next level as a line: what is done in ivory, the rest in ash; a
+   signal device like the loading line, not an enclosure */
+.xp-bar {
+  display: flex;
+  width: calc(480 * var(--u));
+  max-width: 100%;
+  height: calc(4 * var(--u));
+  margin-top: calc(16 * var(--u));
+}
+
+.xp-bar > i { display: block; flex-basis: 0; min-width: 0; }
+.xp-bar-done { background: var(--ivory); }
+.xp-bar-rest { background: var(--ash); }
+
+/* the code of conduct in one line (Docs.tsx), the first time a player opens the chat in
+   an official room: low at the left, a step above the XP line, below the game's centre
+   messages and short enough to end before the HUD's speed gauge; the label plane in
+   grey; only its link takes the pointer (a new tab), nothing takes the focus; gone after
+   10 s, never shown with a match summary */
+.conduct-line {
+  position: absolute;
+  left: 7.73%;
+  bottom: 15vh;
+  max-width: 76%;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-small);
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: var(--grey);
+  pointer-events: none;
+  animation: rewards-in 220ms ease-out both;
+}
+
+.conduct-line a { color: var(--ivory); pointer-events: auto; }
+
+/* key cells (KeyCaps.tsx): a key is a small square cell in the cell
+   line on the panels' near-black ground, its name in Akshar caps or the drawn arrow; a
+   group's keys sit close and its word follows, quieter; groups wrap whole */
+.keygroups {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: calc(28 * var(--u));
+  row-gap: calc(10 * var(--u));
+  font-family: var(--font-label);
+  line-height: 1;
+}
+.keygroup { display: inline-flex; align-items: center; gap: calc(10 * var(--u)); white-space: nowrap; }
+.keygroup-keys { display: inline-flex; gap: calc(4 * var(--u)); }
+.keycap {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(30 * var(--u));
+  height: calc(30 * var(--u));
+  padding: 0 calc(8 * var(--u));
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.9);
+  font-family: inherit;
+  font-weight: 500;
+  font-size: calc(15 * var(--u));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.keycap.is-arrow { width: calc(30 * var(--u)); padding: 0; }
+.keycap svg { width: calc(16 * var(--u)); height: calc(16 * var(--u)); }
+.keygroup-words {
+  font-size: calc(16 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+/* the keys at the start of the first games (KeysLine.tsx): where the conduct line stands
+   (never both), the key cells on one near-black strip so the words hold over the arena;
+   nothing takes the pointer or the focus; gone after 12 s */
+.keys-line {
+  position: absolute;
+  left: 7.73%;
+  bottom: 15vh;
+  max-width: 76%;
+  padding: calc(8 * var(--u)) calc(14 * var(--u));
+  background: rgba(4, 6, 9, 0.72);
+  pointer-events: none;
+  animation: rewards-in 220ms ease-out both;
+}
+
+/* an offer of a closer server (Offer.tsx): in the rewards' place, the match
+   summary's spot mid-left; the region one plane forward, the numbers and the room as fact
+   lines, MOVE the one action (pointer only, never the focus), "not now" a step back; once
+   accepted, how many are ready where the actions were. Gone after 10 s or at the next round */
+/* low in the left column, just above the keys and conduct lines: the chat's lines stand at the
+   top left; the offer only ever shows instead of the summary */
+.offer {
+  position: absolute;
+  left: 7.73%;
+  bottom: 21vh;
+  max-width: calc(620 * var(--u));
+  animation: rewards-in 220ms ease-out both;
+}
+
+.offer-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--size-rear);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ivory);
+}
+
+.offer-fact,
+.offer-server,
+.offer-ready {
+  margin: calc(18 * var(--u)) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--size-small);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+.offer-server { margin-top: calc(10 * var(--u)); color: var(--dim); }
+.offer-ready { margin-top: calc(30 * var(--u)); color: var(--ivory); }
+
+.offer-acts {
+  display: flex;
+  align-items: baseline;
+  gap: calc(40 * var(--u));
+  margin-top: calc(30 * var(--u));
+}
+
+.offer-acts .act { pointer-events: auto; }
+.offer-acts .offer-not-now { color: var(--dim); }
+.offer-acts .offer-not-now:hover { color: var(--ivory); }
+
+.offer-say {
+  margin: calc(10 * var(--u)) 0 0;
+  max-width: 46ch;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+@keyframes rewards-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 760px) {
+  .xp-line { left: 12%; bottom: 10vh; }
+  /* the left third: the speed gauge sits at the centre */
+  .conduct-line { left: 12%; bottom: 15vh; max-width: 36%; font-size: calc(18 * var(--u)); }
+  .keys-line { left: 12%; max-width: 40%; }
+  /* the left half only: the player's cycle waits at the centre during the countdown */
+  .offer { left: 12%; bottom: 20vh; max-width: 56%; }
+  .offer-say { display: none; }
+  .xp-bar { width: 100%; }
+}
+
+/* ---- the poster (index.html) ---------------------------------------------- */
+
+/* the scene's opening frame over the canvas while the client loads, under the page's
+   layers; it fades into the live scene, which starts on the same frame (App.tsx) */
+.poster {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease-out;
+}
+
+.poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* in when it has loaded (a black page before that, never a half-drawn image), out over the
+   live scene */
+.poster.is-shown { opacity: 1; }
+.poster.is-gone { opacity: 0; transition-duration: 700ms; }
+
+/* ---- full screen on an iPhone (src/fullscreen.ts) ------------------------------------------
+   Safari there keeps the Fullscreen API to video, but folds its bars away when the page
+   scrolls: html.is-scroll-hide gives the page room to scroll under its fixed layers (nothing
+   moves; the bars go), and the home screen hint offers the way with no bars at all. */
+
+html.is-scroll-hide,
+html.is-scroll-hide body {
+  height: auto;
+  overflow: visible;
+}
+
+html.is-scroll-hide body { min-height: calc(100vh + 120px); }
+
+.hs-hint {
+  position: absolute;
+  left: 50%;
+  bottom: max(9vh, calc(var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 12px));
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 7px 6px 7px 12px;
+  max-width: calc(100vw - 32px);
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.9);
+  font-family: var(--font-label);
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--ink-rest);
+  white-space: nowrap;
+}
+
+.hs-hint svg { flex: none; }
+.hs-hint b { font-weight: 600; color: var(--ink); }
+
+.hs-close {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-quiet);
+  cursor: pointer;
+}
+
+.hs-close:hover,
+.hs-close:focus-visible { color: var(--ink); outline: none; }
+
+body.is-stage .hs-hint,
+body.is-profile .hs-hint,
+body.is-settings .hs-hint,
+body.is-friends .hs-hint { display: none; }
+
+/* the cookie question (CookieBanner.tsx): the hint's cell (above), wrapping, with its two
+   answers side by side and alike (declining is as easy as accepting); in its place while up */
+.ck-banner {
+  position: absolute;
+  left: 50%;
+  bottom: max(9vh, calc(var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 12px));
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--cell-line);
+  background: rgba(8, 11, 16, 0.92);
+  font-family: var(--font-label);
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--ink-rest);
+}
+
+.ck-banner p { flex: 1 1 260px; margin: 0; }
+.ck-banner a { color: var(--ink-quiet); text-underline-offset: 2px; }
+.ck-banner a:hover,
+.ck-banner a:focus-visible { color: var(--ink); }
+.ck-actions { flex: none; display: flex; gap: 6px; }
+
+.ck-button {
+  min-width: 84px;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--cell-line);
+  background: none;
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  cursor: pointer;
+}
+
+.ck-button:hover,
+.ck-button:focus-visible { color: var(--ink); border-color: var(--ink-rest); outline: none; }
+
+body.is-stage .ck-banner,
+body.is-profile .ck-banner,
+body.is-settings .ck-banner,
+body.is-friends .ck-banner { display: none; }
+
+/* on a phone the foot is one small line: the hint and the question stand just over it */
+@media (max-width: 760px) {
+  .hs-hint, .ck-banner { bottom: max(9vh, calc(var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 48px)); }
+}
+
+/* ---- a phone on its side (short, landscape; over the 760 px phone layout too) --------------
+   The composition scales from the width (and under 760 px stacks for an upright phone), which
+   leaves too little height: the wordmark ran into Quick Play. Here the wordmark, the lanes and
+   their type follow the height, the lanes start under the wordmark, the status cells go back to
+   the top right, and the queue keeps clear of the hint and the documents line. */
+@media (max-height: 540px) and (orientation: landscape) {
+  .status { left: auto; right: max(1.9%, var(--discord-safe-area-inset-right, env(safe-area-inset-right))); top: max(3.4vh, var(--discord-safe-area-inset-top, env(safe-area-inset-top))); }
+  .chip { flex: none; }
+  .home-menu { width: max(46%, calc(520 * var(--u))); }
+  .mark {
+    top: max(4vh, var(--discord-safe-area-inset-top, env(safe-area-inset-top)));
+    font-size: clamp(34px, 12.5vh, 72px);
+    letter-spacing: -3px;
+    text-shadow: 2px 0 0 currentColor;
+  }
+  .home-menu { top: calc(19vh - 40 * var(--u)); }
+  .tile { height: clamp(40px, 13vh, 64px); font-size: clamp(22px, 7.4vh, 35px); gap: 14px; }
+  .tile[data-mode="quick"] { height: clamp(46px, 16vh, 77px); font-size: clamp(26px, 9.4vh, 44px); }
+
+  /* the foot is whole again (a narrow one here also takes the upright phone's rules): the
+     documents and The Grid in one row in the bottom right corner, the hint and the cookie
+     question over it on the right, clear of the menu down the left */
+  .home-foot {
+    display: flex;
+    left: auto;
+    right: max(3.83%, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+    top: auto;
+    bottom: calc(var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 12px);
+    gap: 22px;
+  }
+  .docs-line { position: static; flex-wrap: nowrap; gap: 18px; }
+  .community-cell { position: static; margin: 0; height: 44px; gap: 10px; padding: 0 12px; border: 1px solid var(--cell-line); background: rgba(8, 11, 16, 0.78); }
+  .community-cell:focus-visible { outline: none; border-color: var(--trail); box-shadow: 0 0 0 1px var(--trail); }
+  .community-who { display: flex; flex-direction: column; }
+  .community-out { display: block; }
+  .community-mark { width: 22px; height: 22px; }
+  .community-name { font-size: 15px; }
+  .community-sub { font-size: 12px; }
+  .community-out { align-self: flex-start; margin: 8px 0 0; width: 10px; height: 10px; }
+  .hs-hint,
+  .ck-banner {
+    left: auto;
+    right: max(3.83%, var(--discord-safe-area-inset-right, env(safe-area-inset-right)));
+    bottom: calc(var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 68px);
+    transform: none;
+    max-width: min(560px, 52vw);
+  }
+}

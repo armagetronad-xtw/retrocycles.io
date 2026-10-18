@@ -1,0 +1,579 @@
+/* The chat overlay (ChatOverlay.tsx): at the top left over the running game, where
+   the game's own console stood, its words in the 7.73% column of the XP,
+   keys and conduct lines; the match summary (centred) and the offer (lower in the column)
+   keep their places, so the lines never have to step aside for them. At rest: lines only,
+   each on a square near-black strip so it reads over a bright wall, newest at the foot, gone
+   after 12 s; no pointer, no focus. Open: the same box becomes a panel (the
+   cell line, panel ground), its head the tabs, the lines scroll, the chat line is a well at
+   the foot with the focus bar. The box never moves between the two: its padding and line are
+   there at rest, transparent. Its third view, CONSOLE, is the raw log in the
+   system monospace with a monochrome command line; out of a game the same panel stands in
+   the same column over the home screen (.chatframe), under the wordmark. */
+
+.chat {
+  position: absolute;
+  left: calc(7.73% - 27 * var(--u));
+  top: 3.4vh;
+  width: clamp(calc(440 * var(--u)), 30%, calc(640 * var(--u)));
+  padding: calc(12 * var(--u)) calc(16 * var(--u));
+  border: 1px solid transparent;
+  background: transparent;
+  pointer-events: none;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+/* the overlay's own layer, over the game frame, and over the home screen for the Console:
+   it takes no pointer itself, the open panel does */
+.chatframe {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.chatframe > .chat { pointer-events: none; }
+
+/* out of a game (the Console over the home screen): under the wordmark, over the dimmed queue */
+body:not(.is-game) .chat { top: 22vh; }
+/* there it stands over the queue's words, not the moving arena: a ground they cannot show through */
+body:not(.is-game) .chat.is-open { background: rgba(8, 11, 16, 0.98); }
+
+.chat.is-open {
+  border-color: var(--cell-line);
+  background: rgba(8, 11, 16, 0.9);
+}
+
+.chatframe > .chat.is-open { pointer-events: auto; }
+
+/* the Console over the home screen: the queue dims and goes out of reach, as behind the
+   Profile; the documents line steps aside */
+body.is-console { --scene-a: 0.4; }
+body.is-console .frame > * { opacity: 0.4; pointer-events: none; transition: opacity 220ms ease-out; }
+body.is-console .frame .trail { visibility: hidden; }
+body.is-console .docs-line { visibility: hidden; }
+
+/* behind the in-game menu and the Profile, nothing: they take the left of the screen */
+body.is-menu-game .chat,
+body.is-profile-game .chat { display: none; }
+
+/* ---- the head: the two tabs, the panel head's idiom ------------------------------ */
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(20 * var(--u));
+  margin-bottom: calc(12 * var(--u));
+  padding: 0 0 calc(10 * var(--u)) calc(10 * var(--u));
+  border-bottom: 1px solid var(--hairline);
+}
+
+.chat-tabs {
+  display: flex;
+  gap: calc(28 * var(--u));
+}
+
+.chat-tab {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(18 * var(--u));
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+  transition: color 140ms ease-out;
+}
+
+.chat-tab:hover { color: var(--ink-rest); }
+.chat-tab.is-on { color: var(--ink); font-weight: 600; }
+
+/* ---- the lines -------------------------------------------------------------------- */
+
+.chat-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(3 * var(--u));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.chat.is-open .chat-lines {
+  max-height: 38vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cell-line) transparent;
+}
+
+.chat-line {
+  max-width: 100%;
+  /* the strip's own padding, so the line box holds it (no stray overflow when it scrolls) */
+  padding: calc(2 * var(--u)) 0 calc(1 * var(--u));
+  font-family: var(--font-ui);
+  font-size: calc(20 * var(--u));
+  line-height: 1.32;
+  color: var(--ink-rest);
+  overflow-wrap: anywhere;
+  animation: chat-in 160ms ease-out both;
+}
+
+/* the strip: square, tight to the words, carried over a wrap */
+.chat-strip {
+  padding: calc(2 * var(--u)) calc(10 * var(--u)) calc(1 * var(--u));
+  background: rgba(4, 6, 9, 0.74);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.chat.is-open .chat-strip { background: none; }
+
+/* the channels, as the game and MMO chat colour them: public chat in the
+   game's own chat yellow (0.2.9 writes ": " and the message in 0xffff7f), team chat cyan, a
+   whisper pink; what a player wrote in colour codes keeps its colours, a run without codes
+   takes the channel's. The cyan is paler than the trail's (#2fd3ff), so the two never read
+   as one signal. Events and the room's lines are white, as the game's console prints them */
+.chat {
+  --chat-say: #ffff7f;
+  --chat-team: #8fe9ff;
+  --chat-whisper: #ff8cff;
+}
+
+.chat-line.is-say { color: var(--chat-say); }
+.chat-line.is-team { color: var(--chat-team); }
+.chat-line.is-whisper { color: var(--chat-whisper); }
+
+/* the speaker's name in the game's colours; a name without codes is white, as in the game;
+   in team chat the name is the channel's cyan, codes or not */
+.chat-name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.chat-line.is-say .chat-name { color: var(--ink); }
+
+/* the channel's label: [team], [spectators], [from name], [to name] */
+.chat-tag { font-weight: 600; }
+
+/* what happened: the page's words in white, the names in their colours (white without) */
+.chat-line.is-event {
+  font-family: var(--font-label);
+  font-size: calc(19 * var(--u));
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.chat-who { font-weight: 500; }
+
+/* the points a line granted, after its words: signed, in figures that line up, the loss a
+   step quieter than the gain */
+.chat-points {
+  margin-left: calc(4 * var(--u));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.chat-points.is-loss { font-weight: 500; color: var(--ink-rest); }
+
+/* who came and went, and the page's own notes: a plane back */
+.chat-line.is-presence,
+.chat-line.is-note,
+.chat-line.is-empty {
+  font-family: var(--font-label);
+  font-size: calc(17 * var(--u));
+  letter-spacing: 0.02em;
+  color: var(--ink-quiet);
+}
+
+/* anything else the room printed (greetings, votes, admins): white, in its own colours */
+.chat-line.is-server {
+  font-size: calc(17 * var(--u));
+  color: var(--ink);
+}
+
+.chat-line.is-empty { animation: none; }
+
+/* ---- the Console view: the game's own text, raw ------------------------------------
+   The one place the page sets the system monospace: the
+   log is what the game printed, set apart from the chat by its face. Every line in the game's
+   colours (white without a code), no strips, no sorting. The game's padding is not kept:
+   runs of blanks fold to one (a padded /players row would wrap into ragged gaps on a narrow
+   panel), and a wrapped line hangs its continuation 2ch in, so each line still reads as one. */
+
+.chat {
+  --font-console: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+}
+
+/* wider than the chat, from the same left edge: long log lines wrap less */
+.chat.is-open.is-console { width: clamp(calc(620 * var(--u)), 44%, calc(820 * var(--u))); }
+
+.chat.is-console .chat-lines { gap: 0; }
+
+.chat-line.is-log {
+  padding: 0;
+  font-family: var(--font-console);
+  font-size: calc(15 * var(--u));
+  line-height: 1.45;
+  letter-spacing: 0;
+  color: var(--ink);
+  padding-left: 2ch;
+  text-indent: -2ch;
+  animation: none;
+}
+
+.chat-line.is-log .chat-strip { padding: 0; }
+
+/* a session began: a quiet rule naming the room */
+.chat-line.is-log.is-divider {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  margin: calc(8 * var(--u)) 0 calc(6 * var(--u));
+  padding-left: 0;
+  text-indent: 0;
+  color: var(--ink-quiet);
+  white-space: nowrap;
+}
+
+.chat-line.is-divider::before,
+.chat-line.is-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.chat-line.is-divider::before { flex: 0 0 calc(16 * var(--u)); }
+
+/* what was run from the line, and the page's word when it could not be */
+.chat-line.is-log.is-input { color: var(--ink-rest); }
+.chat-line.is-log.is-note { color: var(--ink-quiet); }
+
+.chat.is-console .chat-line.is-empty { font-family: var(--font-console); font-size: calc(15 * var(--u)); letter-spacing: 0; }
+
+/* the filter (Ctrl+F) in the head: a small well, the count after it */
+.chat-find {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  min-width: 0;
+  height: calc(32 * var(--u));
+  padding: 0 calc(10 * var(--u));
+  border: 1px solid var(--ink-quiet);
+  background: rgba(4, 6, 9, 0.96);
+}
+
+.chat-find-key,
+.chat-find-count {
+  flex: none;
+  font-family: var(--font-label);
+  font-size: calc(14 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.chat-find-input {
+  width: calc(150 * var(--u));
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: calc(17 * var(--u));
+  color: var(--ink);
+  caret-color: var(--ink);
+}
+
+.chat.is-console .chat-find-input { font-family: var(--font-console); font-size: calc(15 * var(--u)); }
+
+/* scrolled up while lines came: how many, at the foot of the lines; a click follows again */
+.chat-unseen {
+  display: block;
+  margin: calc(6 * var(--u)) 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(14 * var(--u));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+}
+
+.chat-unseen:hover { color: var(--ink); }
+
+/* what players write in Korean, Japanese or Chinese: Noto Sans in that language's forms (the
+   same Han character is drawn differently in each), after Overpass, which has no CJK; the
+   faces are linked on first use (public/fonts/cjk/faces.css) */
+.chat [lang="ko"] { font-family: "Overpass", "Noto Sans KR", "Segoe UI", system-ui, sans-serif; }
+.chat [lang="ja"] { font-family: "Overpass", "Noto Sans JP", "Segoe UI", system-ui, sans-serif; }
+.chat [lang="zh"] { font-family: "Overpass", "Noto Sans SC", "Segoe UI", system-ui, sans-serif; }
+
+@keyframes chat-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---- the chat line: a well with its key inside, the focus bar always (it has the focus) */
+
+.chat-well {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: calc(50 * var(--u));
+  margin-top: calc(12 * var(--u));
+  padding: 0 calc(16 * var(--u)) 0 calc(20 * var(--u));
+  border: 1px solid var(--ink-quiet);
+  background: rgba(4, 6, 9, 0.96);
+  cursor: text;
+}
+
+.chat-well::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(4 * var(--u));
+  background: var(--ink);
+}
+
+.chat-key {
+  flex: none;
+  max-width: 40%;
+  margin-right: calc(16 * var(--u));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-label);
+  font-size: calc(16 * var(--u));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.chat-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.chat-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: calc(20 * var(--u));
+  color: var(--ink);
+  caret-color: var(--ink);
+}
+
+/* the Console's line: monochrome ink in the monospace, never the chat's yellow, so a
+   command cannot pass for chat */
+.chat.is-console .chat-input { font-family: var(--font-console); font-size: calc(18 * var(--u)); }
+
+/* the setting's current value after its name (= 3.5), a ghost behind the typed text */
+.chat-ghost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  font-family: var(--font-console);
+  font-size: calc(18 * var(--u));
+  color: var(--ink-quiet);
+}
+
+.chat-ghost-typed { visibility: hidden; }
+
+/* the line in its channel's colour as you type: SAY yellow, TEAM cyan, a whisper pink; a
+   command the page or the room answers stays ink */
+.chat-well.is-say .chat-key,
+.chat-well.is-say .chat-input { color: var(--chat-say); caret-color: var(--chat-say); }
+.chat-well.is-team .chat-key,
+.chat-well.is-team .chat-input { color: var(--chat-team); caret-color: var(--chat-team); }
+.chat-well.is-whisper .chat-key,
+.chat-well.is-whisper .chat-input { color: var(--chat-whisper); caret-color: var(--chat-whisper); }
+
+/* the Console's foot: Copy log alone, at the panel's right */
+.chat-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin: calc(10 * var(--u)) 0 0;
+}
+
+/* Copy log: the foot's one action, a quiet word that takes the pointer */
+.chat-copy {
+  flex: none;
+  margin: 0;
+  padding: 0 0 calc(2 * var(--u));
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: calc(14 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-rest);
+  transition: color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.chat-copy:hover { color: var(--ink); border-color: var(--ink-quiet); }
+
+.chat-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---- a phone: across the width, at the top (under the status bar out of a game), the
+   sizes in px --------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .chat {
+    left: 2%;
+    width: 96%;
+    top: 2vh;
+    padding: 8px 10px;
+  }
+  body:not(.is-game) .chat { top: calc(12vh + 56px); }
+  .chat-line { font-size: 15px; }
+  .chat-line.is-event { font-size: 14px; }
+  .chat-line.is-presence,
+  .chat-line.is-note,
+  .chat-line.is-empty,
+  .chat-line.is-server { font-size: 13px; }
+  .chat-tab { font-size: 14px; }
+  .chat-well { height: 42px; padding-left: 14px; }
+  .chat-key { font-size: 12px; margin-right: 10px; }
+  .chat-input { font-size: 16px; }
+  .chat.is-open.is-console { width: 96%; }
+  .chat-copy,
+  .chat-unseen,
+  .chat-find-key,
+  .chat-find-count { font-size: 11px; }
+  .chat-line.is-log,
+  .chat.is-console .chat-line.is-empty { font-size: 12px; }
+  .chat.is-console .chat-input,
+  .chat-ghost { font-size: 15px; }
+  .chat-find { height: 28px; }
+  .chat-find-input,
+  .chat.is-console .chat-find-input { width: 90px; font-size: 14px; }
+  .chat.is-open .chat-lines { max-height: 30vh; }
+}
+
+/* ---- the compact view (compact.ts: the embed, a phone, a small window) --------------------
+   A narrower column that leaves the arena ahead of the cycle clear: at rest at most four
+   lines (the room's long announcements wait in the open panel, ChatOverlay.tsx), chat held to
+   two lines and everything else to one, a step smaller; the open panel keeps every line. */
+
+body.is-compact .chat {
+  left: 2%;
+  top: max(1.5vh, var(--discord-safe-area-inset-top, env(safe-area-inset-top)));
+  width: min(70%, 420px);
+  padding: 4px 6px;
+}
+
+body.is-compact .chat.is-open { width: min(96%, 560px); }
+
+body.is-compact .chat:not(.is-open) .chat-lines { gap: 2px; }
+
+body.is-compact .chat:not(.is-open) .chat-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+body.is-compact .chat:not(.is-open) .chat-line.is-event,
+body.is-compact .chat:not(.is-open) .chat-line.is-presence,
+body.is-compact .chat:not(.is-open) .chat-line.is-note {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  font-size: 12px;
+}
+
+body.is-compact .chat:not(.is-open) .chat-strip { padding: 1px 6px 0; }
+
+/* a sheet over the game (App is-sheet-up): the resting lines step aside */
+body.is-sheet-up .chatframe { visibility: hidden; }
+
+/* ---- a touch device (ChatOverlay touch): the open panel in what the phone's keyboard leaves
+   of the screen (--vv-top / --vv-h, the visual viewport, set while it is open), the lines
+   taking whatever the head and the line leave; a close cell ends the head (no Esc key) */
+.chat.is-open.is-touch {
+  top: calc(var(--vv-top, 0px) + max(6px, var(--discord-safe-area-inset-top, env(safe-area-inset-top))));
+  left: max(6px, var(--discord-safe-area-inset-left, env(safe-area-inset-left)));
+  width: min(calc(100% - 12px), 560px);
+  max-height: calc(var(--vv-h, 100vh) - 12px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px 8px;
+}
+
+.chat.is-open.is-touch > * { flex: none; }
+.chat.is-open.is-touch .chat-head { margin-bottom: 6px; padding: 0 0 4px 4px; }
+.chat.is-open.is-touch .chat-lines { flex: 1 1 auto; min-height: 0; max-height: none; }
+.chat.is-open.is-touch .chat-well { margin-top: 6px; }
+
+.chat-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--cell-line);
+  border-radius: 0;
+  background: none;
+  color: var(--ink-rest);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chat-close:active { background: var(--ink); color: #000; }
+
+/* the stand-in field that brings a phone's keyboard up inside the tap (softKeyboard.ts) */
+.soft-keyboard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 16px;
+  pointer-events: none;
+}

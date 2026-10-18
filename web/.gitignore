@@ -1,0 +1,2 @@
+# the deployable bundle, made by "make dist" (web/wasm/Makefile)
+/dist/

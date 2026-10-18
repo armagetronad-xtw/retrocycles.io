@@ -1,0 +1,4 @@
+/* the plain pages' look (auth-complete.html, the account links' forwarders): files, not
+   inline, for the Content-Security-Policy */
+html, body { margin: 0; height: 100%; background: #000; }
+p { margin: 0; padding: 24px; color: #b0b0af; font: 18px/1.4 Overpass, "Segoe UI", system-ui, sans-serif; }
