@@ -1,0 +1,67 @@
+{
+  "description": "Login token test vectors for platform contract v0. Verify with now = 1790000030 unless a case says otherwise. The private key is a TEST key: never use it outside tests.",
+  "key": {
+    "kid": "test-2026-09",
+    "alg": "EdDSA",
+    "crv": "Ed25519",
+    "x": "CE3yncjveytbx7-YWdWvpxrf1ORyq8l8ktSE87ngPtQ",
+    "d_TEST_ONLY": "vCvLnTXd6Uwa6k4Y-cS2qDlWzKYss9cEoi8xYjVMgk8"
+  },
+  "serverId": "dev-local-1",
+  "authority": "retrocycles",
+  "cases": [
+    {
+      "name": "valid",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6InJjLWxvZ2luK2p3cyIsImtpZCI6InRlc3QtMjAyNi0wOSJ9.eyJpc3MiOiJyZXRyb2N5Y2xlcyIsInN1YiI6InVfdGVzdF8wMDAxIiwiZ2lkIjoiZy03ZjNhOWMwMUByZXRyb2N5Y2xlcyIsIm5hbWUiOiJUZXN0ZXIiLCJhdWQiOiJkZXYtbG9jYWwtMSIsImlhdCI6MTc5MDAwMDAwMCwiZXhwIjoxNzkwMDAwMDYwLCJqdGkiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFBIiwicm9sZXMiOiIifQ.OR5nOT4W3F7QbwV6ianmEvsX-wh9Oin335qVY48SWoD-3El9If0xubC6qqYPuR6A0YhZcJGCHvaqLeomfrHJCA",
+      "expect": "accept",
+      "gid": "g-7f3a9c01@retrocycles",
+      "sub": "u_test_0001"
+    },
+    {
+      "name": "replay of the valid token (same jti) after it was accepted once",
+      "token": "SAME_AS:valid",
+      "expect": "reject",
+      "reason": "jti already used"
+    },
+    {
+      "name": "expired",
+      "token": "SAME_AS:valid",
+      "now": 1790000100,
+      "expect": "reject",
+      "reason": "exp < now - skew (skew 5 s)"
+    },
+    {
+      "name": "wrong audience",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6InJjLWxvZ2luK2p3cyIsImtpZCI6InRlc3QtMjAyNi0wOSJ9.eyJpc3MiOiJyZXRyb2N5Y2xlcyIsInN1YiI6InVfdGVzdF8wMDAxIiwiZ2lkIjoiZy03ZjNhOWMwMUByZXRyb2N5Y2xlcyIsIm5hbWUiOiJUZXN0ZXIiLCJhdWQiOiJvdGhlci1zZXJ2ZXIiLCJpYXQiOjE3OTAwMDAwMDAsImV4cCI6MTc5MDAwMDA2MCwianRpIjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQiIsInJvbGVzIjoiIn0.cequQ0MWttbl-O8mdWvV688ksMzo2HWD32Of2nu-jnlrRbCU1KHgLuiBoM94KIy3O8dXb70QL1txpZUTCtKcDg",
+      "expect": "reject",
+      "reason": "aud != serverId"
+    },
+    {
+      "name": "foreign authority in gid",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6InJjLWxvZ2luK2p3cyIsImtpZCI6InRlc3QtMjAyNi0wOSJ9.eyJpc3MiOiJyZXRyb2N5Y2xlcyIsInN1YiI6InVfdGVzdF8wMDAyIiwiZ2lkIjoiYWRtaW5AZm9ydW1zIiwibmFtZSI6IkV2aWwiLCJhdWQiOiJkZXYtbG9jYWwtMSIsImlhdCI6MTc5MDAwMDAwMCwiZXhwIjoxNzkwMDAwMDYwLCJqdGkiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFDIiwicm9sZXMiOiIifQ.uDawWNmBPY9vHoNTEbwxchG4K8VUGK1HQk-MF0k7jbKCFQJ6Ui5XjfsAlHG29zY9w87w8E8ZTeA_NmkPKbXQBg",
+      "expect": "reject",
+      "reason": "gid authority != configured authority"
+    },
+    {
+      "name": "corrupted signature",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6InJjLWxvZ2luK2p3cyIsImtpZCI6InRlc3QtMjAyNi0wOSJ9.eyJpc3MiOiJyZXRyb2N5Y2xlcyIsInN1YiI6InVfdGVzdF8wMDAxIiwiZ2lkIjoiZy03ZjNhOWMwMUByZXRyb2N5Y2xlcyIsIm5hbWUiOiJUZXN0ZXIiLCJhdWQiOiJkZXYtbG9jYWwtMSIsImlhdCI6MTc5MDAwMDAwMCwiZXhwIjoxNzkwMDAwMDYwLCJqdGkiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFBIiwicm9sZXMiOiIifQ.PR5nOT4W3F7QbwV6ianmEvsX-wh9Oin335qVY48SWoD-3El9If0xubC6qqYPuR6A0YhZcJGCHvaqLeomfrHJCA",
+      "expect": "reject",
+      "reason": "signature does not verify"
+    },
+    {
+      "name": "tampered payload (aud changed, signature of the valid token)",
+      "token": "eyJhbGciOiJFZERTQSIsInR5cCI6InJjLWxvZ2luK2p3cyIsImtpZCI6InRlc3QtMjAyNi0wOSJ9.eyJpc3MiOiJyZXRyb2N5Y2xlcyIsInN1YiI6InVfdGVzdF8wMDAxIiwiZ2lkIjoiZy03ZjNhOWMwMUByZXRyb2N5Y2xlcyIsIm5hbWUiOiJUZXN0ZXIiLCJhdWQiOiJkZXYtbG9jYWwtMiIsImlhdCI6MTc5MDAwMDAwMCwiZXhwIjoxNzkwMDAwMDYwLCJqdGkiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFBIiwicm9sZXMiOiIifQ.OR5nOT4W3F7QbwV6ianmEvsX-wh9Oin335qVY48SWoD-3El9If0xubC6qqYPuR6A0YhZcJGCHvaqLeomfrHJCA",
+      "serverId": "dev-local-2",
+      "expect": "reject",
+      "reason": "signature does not verify"
+    },
+    {
+      "name": "unknown kid",
+      "note": "verify the valid token against a key set that does not contain kid test-2026-09",
+      "token": "SAME_AS:valid",
+      "keys": [],
+      "expect": "reject",
+      "reason": "unknown kid"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+nlohmann/json 3.12.0, vendored for the gPlatform layer (--enable-platform).
+
+json.hpp is the official single-header release asset, unmodified:
+https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp
+(sha256 aaf127c04cb31c406e5b04a63f1ae89369fccde6d8fa7cdda1ed4f32dfc5de63). MIT licence
+(LICENSE.MIT). Header only; included as <nlohmann/json.hpp> by src/tron/gPlatformToken.cpp
+and src/tron/gPlatformHttp.cpp with src/thirdparty on the include path via -isystem.

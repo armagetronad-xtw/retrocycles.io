@@ -1,0 +1,7 @@
+{
+  "description": "armathentication md5 method as the platform's authority uses it (prefix and suffix empty): stored = md5(utf8(password)); hash = md5(stored || salt), salt being the server's already scrambled 16 bytes. Hex is lowercase.",
+  "password": "k7q4-m2xp-9hrt-vw3e",
+  "stored": "d6c750fbf71d75e8e3bf1566e7b1b5eb",
+  "salt": "00112233445566778899aabbccddeeff",
+  "hash": "7a5cb77b633b0bfedbc0ae0d7d1cf71e"
+}
