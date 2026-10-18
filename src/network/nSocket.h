@@ -92,7 +92,19 @@ public:
 
     bool                IsSet       () const                     ; //!< returns true only if address is not INETADDR_ANY
 
+    // peers that are not reachable over UDP, but through an nTransport. See nTransport.h.
+    bool                IsVirtual        () const                ; //!< returns true if this peer is reached through an nTransport
+    unsigned short      GetConnectionId  () const                ; //!< returns the transport connection ID (only meaningful for virtual addresses)
+    unsigned int        GetIPv4          () const                ; //!< returns the raw IPv4 address in network byte order
+    bool                CarriesIPv4      () const                ; //!< returns true if sin_addr holds a meaningful IPv4 address
+
+    //! builds a virtual address from the peer's real IPv4 (network byte order) and its transport connection ID
+    static nAddress Virtual( unsigned int ipv4NetworkOrder, unsigned short connectionId );
+
     static int 	Compare ( const nAddress & a1, const nAddress & a2 );	//!< compares two addresses
+
+    //! returns true if both addresses carry the same IPv4 host, no matter the family or port
+    static bool SameHost( const nAddress & a1, const nAddress & a2 );
 
     operator struct sockaddr *      ()       { return &addr_.addr; }   //!< conversion to sockaddr
     operator struct sockaddr const *() const { return &addr_.addr; }   //!< conversion to sockaddr

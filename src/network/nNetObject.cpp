@@ -2055,6 +2055,84 @@ void sn_Sync(REAL timeout,bool sync_sn_netObjects, bool otherEnd){
 #endif
 }
 
+#ifdef __EMSCRIPTEN__
+// the client branch of sn_Sync as a state polled once per frame
+namespace
+{
+struct sn_SyncState
+{
+    REAL timeout = 0;
+    nTimeAbsolute endTime = 0;
+    REAL failureProbability = 1;
+    bool syncObjects = false;
+    bool otherEnd = true;
+    bool active = false;
+};
+sn_SyncState sn_syncState;
+
+// sends one sync request; false if repeating the procedure would be useless
+bool sn_SyncRequest( sn_SyncState & st )
+{
+    static nVersionFeature sg_ServerSync( 10 );
+    st.failureProbability *= sn_Connections[0].PacketLoss();
+    sync_ack[0]=true;
+    if ( sg_ServerSync.Supported( 0 ) && st.otherEnd )
+    {
+        tJUST_CONTROLLED_PTR< nMessage > m=new nMessage(sync_nd);
+        *m << st.timeout;
+        m->Write(st.syncObjects);
+        m->Write(c_sync);
+        m->Send(0);
+        sync_ack[0]=false;
+        return true;
+    }
+    st.failureProbability = 0;
+    return false;
+}
+}
+
+void sn_SyncBegin(REAL timeout,bool sync_sn_netObjects, bool otherEnd)
+{
+    sn_SyncState & st = sn_syncState;
+    st = sn_SyncState();
+    st.timeout = timeout;
+    st.endTime = timeout+tSysTimeFloat();
+    st.syncObjects = sync_sn_netObjects;
+    st.otherEnd = otherEnd;
+    st.active = sn_GetNetState()==nCLIENT;
+    if ( st.active )
+        sn_SyncRequest( st );
+}
+
+bool sn_SyncPoll()
+{
+    sn_SyncState & st = sn_syncState;
+    if ( !st.active )
+        return true;
+
+    if ( sn_Connections[0].socket &&
+            !tRecorder::DesyncedPlayback() &&
+            ( sync_ack[0] == false || sn_Connections[0].ackPending>0 || sn_QueueLen(0)) &&
+            tSysTimeFloat()<st.endTime )
+    {
+        sn_Receive();
+        if (st.syncObjects)
+            nNetObject::SyncAll();
+        sn_SendPlanned();
+        return false;
+    }
+
+    // one pass is over; repeat as often as the packet loss suggests
+    st.timeout *= .5;
+    st.endTime = st.timeout+tSysTimeFloat();
+    if ( st.failureProbability > .0001 && st.timeout > .01 && sn_SyncRequest( st ) )
+        return false;
+
+    st.active = false;
+    return true;
+}
+#endif // __EMSCRIPTEN__
+
 static void sync_msg_handler(nMessage &m){
     static bool recursion=false;
     if (!recursion){
@@ -2069,6 +2147,7 @@ static void sync_msg_handler(nMessage &m){
         unsigned short c_sync;
         m.Read(c_sync);
 
+#ifndef __EMSCRIPTEN__
         if(sn_GetNetState()!=nSERVER){
             sn_Sync(timeout+4,sync_sn_netObjects!=0,false);
             tJUST_CONTROLLED_PTR< nMessage > m=new nMessage(sync_ack_nd);
@@ -2076,9 +2155,13 @@ static void sync_msg_handler(nMessage &m){
             m->Send(0);
         }
         else
+#endif
         {
             // no time for syncing! write sync response immediately with low priority so the client
             // gets it as soon as all other things are sent
+            // (the browser client answers the same way: it cannot wait in a
+            // message handler, and the low priority orders the ack behind
+            // everything already queued)
             tJUST_CONTROLLED_PTR< nMessage > response=new nMessage(sync_ack_nd);
             response->Write(c_sync);
             response->Send(m.SenderID(),10000000);

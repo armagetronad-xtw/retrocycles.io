@@ -37,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#include "tCrypt.h"
 #include "tException.h"
 #include <memory>
+#include <string>
 
 class nSocket;
 class nAddress;
@@ -120,9 +121,13 @@ nNetState sn_GetNetState();
 void sn_SetNetState(nNetState x);
 void sn_DisconnectUser(int i, const tOutput& reason, nServerInfoBase * redirectTo = 0 ); //!< terminate connection with user i (peacefully)
 void sn_KickUser(int i, const tOutput& reason, REAL severity = 1, nServerInfoBase * redirectTo = 0 );   //!< throw out user i (violently)
+void sn_DisconnectPeer(nAddress const & peer, const tOutput& reason); //!< server: disconnect the user at peer, if any (its transport closed)
+bool sn_IsPeerConnected(nAddress const & peer); //!< server: true if a logged in user is at peer
 
 void sn_GetAdr(int user,  tString& name);
 unsigned int sn_GetPort(int user);
+bool sn_IsVirtualPeer(int user);    //!< true when the user is reached through an nTransport (browser client), not a socket
+std::string sn_PeerTicket(int user); //!< the private room ticket the user's transport connection brought, empty if none
 unsigned int sn_GetServerPort();
 int sn_NumUsers();
 int sn_MaxUsers();
@@ -360,6 +365,17 @@ enum nLoginType
 // go to client mode and connect to server
 nConnectError sn_Connect(nAddress const & server, nLoginType loginType = Login_All, nSocket const * socket = NULL );
 
+#ifdef __EMSCRIPTEN__
+/* Resumable login for the browser build: sn_Connect's phases as begin/poll
+   pairs driven from the frame callback instead of nested loops.
+   sn_ConnectBegin sends the login message; sn_ConnectPoll receives and
+   resends, returns true once the login is over and sets result to nOK
+   (the two post-login syncs are then the caller's job via
+   sn_SyncBegin/sn_SyncPoll), nTIMEOUT or nDENIED. */
+void sn_ConnectBegin( nAddress const & server, nLoginType loginType = Login_All, nSocket const * socket = NULL );
+bool sn_ConnectPoll( nConnectError & result );
+#endif
+
 // let the server connection socket point to a new server (EVIL!)
 void sn_Bend( nAddress const & server );
 void sn_Bend( tString  const & server, unsigned int port );
@@ -506,6 +522,7 @@ public:
 
     nMessage& operator >> (tString &s);
     nMessage& operator >> (tColoredString &s);
+    nMessage& ReadUtf8 (tColoredString &s);       //!< a chat line from a client that writes UTF-8: as >>, but well formed UTF-8 stays whole (tools/tUtf8.h)
     nMessage& operator << (const tString &s);
     nMessage& operator << (const tColoredString &s);
     nMessage& operator << (const tOutput &o);
@@ -634,6 +651,11 @@ extern void sn_DiscardFromControlSocket();
 // otherEnd: if set, the client instructs the server to send all packets and waits for completion.
 // if unset, the client just sends all packets and hopes for the best.
 void sn_Sync(REAL timeout,bool sync_sn_netObjects=false, bool otherEnd=true); // defined in nNetObject.C
+#ifdef __EMSCRIPTEN__
+// resumable client side sn_Sync: begin, then poll once per frame until it returns true
+void sn_SyncBegin(REAL timeout,bool sync_sn_netObjects=false, bool otherEnd=true); // defined in nNetObject.C
+bool sn_SyncPoll(); // defined in nNetObject.C
+#endif
 
 // causes the connected clients to print a message
 void sn_ConsoleOut(const tOutput &message,int client=-1);

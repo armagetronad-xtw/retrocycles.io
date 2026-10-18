@@ -38,13 +38,15 @@ nobase_language_DATA=language/languages.txt language/english_base.txt language/e
 if NEEDDATA
 # install media data only when it is needed
 nobase_texture_DATA=textures/cycle_body.png textures/cycle_wheel.png textures/dir_wall.png\
-	textures/floor_a.png textures/floor_b.png textures/floor.png textures/font_extra.png\
+	textures/floor_a.png textures/floor_b.png textures/floor.png textures/floor_tron.png textures/floor_tron_wet.png textures/dir_wall_tron.png textures/dir_wall_glass.png textures/font_extra.png\
 	textures/font.png textures/font_s.png textures/icon.png textures/rim_wall.png\
-	textures/shadow.png textures/sky.png textures/title.jpg
+	textures/shadow.png textures/sky.png textures/title.jpg\
+	textures/stadium/crowd.png
 
 nobase_sound_DATA=sound/cyclrun.wav sound/expl.wav
 
-nobase_model_DATA=models/cycle_body.mod models/cycle_front.mod models/cycle_rear.mod
+nobase_model_DATA=models/cycle_body.mod models/cycle_front.mod models/cycle_rear.mod\
+	models/stadium/stand.stm models/stadium/flood.stm models/stadium/board.stm
 endif
 
 # generate configure.ac with version hardcoded and ChangeLog

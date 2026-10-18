@@ -58,6 +58,27 @@ public:
 
     //! returns whether a login is currently in process for the given user
     static bool LoginInProcess(nNetObject * user);
+
+    /* Asynchronous answers to the server's password request, for user
+       interfaces that cannot block inside the UserPasswordCallback (the
+       browser build, whose page asks for the password). The callback calls
+       DeferPasswordAnswer(); the request then stays open until
+       AnswerPasswordRequest() sends the answer or CancelPasswordRequest()
+       drops it (connection ended). The native client never defers. */
+    static void DeferPasswordAnswer();
+    static bool PasswordRequestPending();
+    static nPasswordRequest const & PendingPasswordRequest();
+    static tString const & PendingPasswordUsername();
+    static void AnswerPasswordRequest( tString const & username, nScrambledPassword const & scrambled, bool aborted );
+    static void CancelPasswordRequest();
+
+    /* The server address the client scrambles into its answer (the pharming
+       check). By default the peer address of connection 0; a client that
+       reached the server through a transport (the browser client: signalling
+       URL, virtual peer address) sets the host:port it connected to here and
+       the server compares the host part against SERVER_DNS / its own address
+       for such peers. Empty: the default. */
+    static void SetClientServerAddress( tString const & hostAndPort );
 };
 
 #endif

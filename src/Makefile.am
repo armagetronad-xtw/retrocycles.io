@@ -53,7 +53,7 @@ libtools_a_SOURCES=	${tools_extra} tools/tArray.cpp tools/tArray.h tools/tCallba
 	tools/tList.h tools/tLocale.cpp tools/tLocale.h tools/tMath.h \
 	tools/tMemStack.cpp tools/tMemStack.h tools/tReferenceHolder.h \
     tools/tRing.cpp tools/tRing.h tools/tSafePTR.cpp\
-	tools/tSafePTR.h tools/tString.cpp tools/tString.h tools/tSysTime.cpp tools/tSysTime.h tools/tToDo.cpp tools/tToDo.h\
+	tools/tSafePTR.h tools/tString.cpp tools/tString.h tools/tUtf8.h tools/tSysTime.cpp tools/tSysTime.h tools/tToDo.cpp tools/tToDo.h\
 	tools/tException.cpp tools/tException.h\
 	tools/tRecorder.cpp tools/tRecorder.h\
 	tools/tRecorderInternal.cpp tools/tRecorderInternal.h\
@@ -71,7 +71,16 @@ libnetwork_a_SOURCES=network/md5.cpp network/md5.h network/nAuthentication.cpp\
 	network/nNetObject.cpp network/nNetObject.h network/nNetwork.cpp network/nNetwork.h\
 	network/nObserver.cpp network/nObserver.h network/nPriorizing.cpp network/nPriorizing.h\
 	network/nServerInfo.cpp network/nServerInfo.h network/nSimulatePing.h network/nSocket.cpp\
-	network/nSocket.h network/nSpamProtection.cpp network/nSpamProtection.h
+	network/nSocket.h network/nSpamProtection.cpp network/nSpamProtection.h\
+	network/nTransport.cpp network/nTransport.h\
+	network/nTransportLoopback.cpp network/nTransportLoopback.h\
+	network/nTransportRtc.h network/nTransportRtcSupport.h
+
+# the WebRTC transport needs libdatachannel; its header is listed above regardless
+# so that "make dist" ships it from a build that does not compile it
+if BUILDWEBRTC
+libnetwork_a_SOURCES+=network/nTransportRtc.cpp
+endif
 
 if BUILDMAIN
 
@@ -162,7 +171,7 @@ else
 noinst_LIBRARIES = libnetwork.a libtools.a
 endif
 
-armagetronad_main_SOURCES = tron/gFloor.cpp tron/gArmagetron.cpp
+armagetronad_main_SOURCES = tron/gFloor.cpp tron/gArmagetron.cpp tron/gStadium.cpp tron/gStadium.h
 armagetronad_main_CXXFLAGS =$(libtron_a_CXXFLAGS)
 armagetronad_main_LDADD=libtron.a libengine.a libnetwork.a libui.a librender.a libtools.a
 
@@ -175,7 +184,7 @@ unit_tests_SOURCES = thirdparty/doctest/doctest.h \
 	test/MockConsole.h test/Statics.h \
 	test/ConfItemTempValue.h test/ConfItemTempValue.cpp \
 	test/eCoord_test.cpp test/eGameObject_test.cpp test/tArray_test.cpp \
-	test/tList_test.cpp test/tString_test.cpp test/tLinkedList_test.cpp \
+	test/tList_test.cpp test/tString_test.cpp test/tUtf8_test.cpp test/tLinkedList_test.cpp \
 	test/tRing_test.cpp test/tHeap_test.cpp test/tMemStack_test.cpp \
 	test/tColor_test.cpp test/tException_test.cpp test/tCallback_test.cpp \
 	test/tCallbackString_test.cpp test/tRandomizer_test.cpp \
@@ -186,6 +195,7 @@ unit_tests_SOURCES = thirdparty/doctest/doctest.h \
 	test/ePath_test.cpp \
 	test/ePlayer_test.cpp test/ePlayerNetID_test.cpp test/eTeam_test.cpp \
 	test/nSocket_test.cpp test/nNetwork_test.cpp test/nMessage_test.cpp \
+	test/nTransport_test.cpp test/nTransportRtc_test.cpp \
 	test/nNetObject_test.cpp test/nServerInfo_test.cpp test/tCrypt_test.cpp \
 	test/tConfiguration_test.cpp \
 	test/tConsole_test.cpp \
@@ -199,6 +209,7 @@ unit_tests_SOURCES = thirdparty/doctest/doctest.h \
 	test/unit_tests_main.cpp
 unit_tests_CXXFLAGS =$(libtron_a_CXXFLAGS) -iquote @srcdir@/thirdparty/doctest
 unit_tests_LDADD=libtron.a libengine.a libnetwork.a libui.a librender.a libtools.a
+unit_tests_SOURCES+=$(platform_test_sources)
 
 chat_prefix_test_SOURCES = test/chat_prefix_test.cpp
 chat_prefix_test_CXXFLAGS = $(libtron_a_CXXFLAGS)
@@ -217,3 +228,33 @@ endif # BUILDFAKERELEASE
 ## armagetronad is a C++ project.
 
 ## Note 2: Libraries must be listed in reverse dependency order.
+
+# The gPlatform layer (platform-contract/README.md, engine/ePlatform.h). The seam and the game
+# hooks are always built; the HTTP implementation and its third party code only with
+# --enable-platform. Kept in one block down here so that edits above never collide with it.
+if BUILDMAIN
+libengine_a_SOURCES+=engine/ePlatform.cpp engine/ePlatform.h
+libtron_a_SOURCES+=tron/gPlatformEvents.cpp tron/gPlatformEvents.h
+if ENABLE_PLATFORM
+# -isystem: third party headers must not trip our -Werror
+platform_includes=-isystem @srcdir@/thirdparty -isystem @srcdir@/thirdparty/monocypher -isystem @srcdir@/thirdparty/monocypher/optional
+libtron_a_SOURCES+=tron/gPlatformHttp.cpp tron/gPlatformHttp.h tron/gPlatformToken.cpp tron/gPlatformToken.h\
+	tron/gPlatformModeration.cpp tron/gPlatformModeration.h tron/gPlatformMoves.cpp tron/gPlatformMoves.h\
+	tron/gPlatformRematch.cpp tron/gPlatformRematch.h\
+	tron/gPlatformLink.cpp tron/gPlatformLink.h tron/gPlatformSocial.cpp tron/gPlatformSocial.h\
+	thirdparty/monocypher/monocypher.c thirdparty/monocypher/monocypher.h\
+	thirdparty/monocypher/optional/monocypher-ed25519.c thirdparty/monocypher/optional/monocypher-ed25519.h\
+	thirdparty/nlohmann/json.hpp
+libtron_a_CXXFLAGS+=$(platform_includes)
+libtron_a_CFLAGS=$(AM_CFLAGS) $(platform_includes)
+endif
+endif
+
+# unit tests of the platform layer, added to unit_tests_SOURCES in the BUILDTESTS block above
+platform_test_sources=test/ePlatform_test.cpp
+if ENABLE_PLATFORM
+platform_test_sources+=test/gPlatformToken_test.cpp test/gPlatformHttp_test.cpp test/gPlatformModeration_test.cpp test/gPlatformMoves_test.cpp\
+	test/gPlatformLink_test.cpp test/gPlatformSocial_test.cpp test/gPlatformRematch_test.cpp
+endif
+
+EXTRA_DIST+=thirdparty/monocypher/LICENCE.md thirdparty/nlohmann/LICENSE.MIT

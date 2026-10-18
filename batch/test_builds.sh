@@ -45,6 +45,21 @@ CONFIGURATIONS=(
     "minimal:--disable-music --disable-authentication --disable-krawall --disable-respawn --disable-memmanager"
 )
 
+# The WebRTC transport needs libdatachannel, which most machines do not have; adding
+# the configuration unconditionally would turn "full" red everywhere but the dev
+# container. So it joins the matrix only when the library is actually installed.
+# Override the location with LIBDATACHANNEL_PREFIX.
+LIBDATACHANNEL_PREFIX="${LIBDATACHANNEL_PREFIX:-/opt/libdatachannel}"
+if [ -d "$LIBDATACHANNEL_PREFIX" ]; then
+    CONFIGURATIONS+=("server_webrtc:--enable-master --enable-dedicated --disable-glout --enable-webrtc --with-libdatachannel=${LIBDATACHANNEL_PREFIX}")
+fi
+
+# The SDL2 client (the layer the browser build uses) joins the matrix where the
+# SDL2 development packages are installed, for the same reason.
+if pkg-config --exists sdl2 SDL2_image 2>/dev/null; then
+    CONFIGURATIONS+=("client_sdl2:--disable-dedicated --enable-glout --enable-sdl2")
+fi
+
 # -Wno-error=deprecated-declarations currently required because libxml deprecated some things
 CXXFLAGS_COMMON='-fmessage-length=0 -Wno-error=deprecated-declarations'
 
@@ -160,7 +175,7 @@ fi
 # Default number of parallel jobs: number of CPUs
 AUTO_JOBS=$(nproc 2>/dev/null || echo 1)
 # get total memory in bytes, mac and linux style, or fallback (16G)
-MEM=$(sysctl -n hw.memsize  2>/dev/null || awk '/MemTotal/ {print $2*1000}' /proc/meminfo 2>/dev/null || echo 16000000000)
+MEM=$(sysctl -n hw.memsize  2>/dev/null || awk '/MemTotal/ {printf "%.0f", $2*1000}' /proc/meminfo 2>/dev/null || echo 16000000000)
 # echo MEM=$MEM
 # compilation eats memory like nothing, assume 2G (trunk) or 1G (legacy)
 MEM_PER_JOB=$((1 * 1000000000))

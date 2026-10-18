@@ -94,8 +94,8 @@ public:
     nServerInfoBase const & ClearAddress() const;	                                         //!< Clears the network address of the server ( so it gets requeried )
 private:
     nAddress & AccessAddress( void ) const;	                       //!< Accesses the network address of the server
-    nServerInfoBase & SetAddress( nAddress const & address );	   //!< Sets the network address of the server
 public:
+    nServerInfoBase & SetAddress( nAddress const & address );	   //!< Sets the network address of the server (bypasses the DNS lookup; the browser client's virtual addresses need this)
     inline nServerInfoBase & SetConnectionName( tString const & connectionName );	         //!< Sets the internet name of the server ("192.168.10.10", "atron.dyndns.org")
     inline nServerInfoBase & SetPort( unsigned int port );	                                 //!< Sets the network port the server listens on
 };

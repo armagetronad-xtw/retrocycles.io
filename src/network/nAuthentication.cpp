@@ -96,17 +96,27 @@ static nKrawall::nPasswordAnswer sn_answer;
 static nKrawall::nSalt sn_salt;
 static int s_inUse = false;
 
-// finish the request for username and password
-static void FinishHandlePasswordRequest()
+// the callback asked for the answer to be sent later (browser build)
+static bool sn_answerDeferred = false;
+
+// the address the client says it connected to, when it is not the peer address
+static tString sn_clientServerAddress;
+
+void nAuthentication::SetClientServerAddress( tString const & hostAndPort )
+{
+    sn_clientServerAddress = hostAndPort;
+}
+
+// scramble sn_answer with the salt and send it
+static void SendPasswordAnswer()
 {
     nKrawall::nScrambledPassword egg;
 
-    // if the callback exists, get the scrambled password of the wanted user
-    if (S_UserPasswordCallback)
-        (*S_UserPasswordCallback)( sn_request, sn_answer );
-
     // scramble the salt with the server address
-    sn_GetAdr( 0, sn_answer.serverAddress );
+    if ( sn_clientServerAddress.Len() > 1 )
+        sn_answer.serverAddress = sn_clientServerAddress;
+    else
+        sn_GetAdr( 0, sn_answer.serverAddress );
     sn_request.ScrambleSalt( sn_salt, sn_answer.serverAddress );
 
     // scramble it with the given salt
@@ -125,6 +135,69 @@ static void FinishHandlePasswordRequest()
     ret->Send(0);
 
     s_inUse = false;
+    sn_answerDeferred = false;
+}
+
+// finish the request for username and password
+static void FinishHandlePasswordRequest()
+{
+    sn_answerDeferred = false;
+
+    // if the callback exists, get the scrambled password of the wanted user
+    if (S_UserPasswordCallback)
+        (*S_UserPasswordCallback)( sn_request, sn_answer );
+
+    // the callback answers later (AnswerPasswordRequest)
+    if ( sn_answerDeferred )
+        return;
+
+    SendPasswordAnswer();
+}
+
+void nAuthentication::DeferPasswordAnswer()
+{
+    sn_answerDeferred = true;
+}
+
+bool nAuthentication::PasswordRequestPending()
+{
+    return s_inUse && sn_answerDeferred;
+}
+
+nKrawall::nPasswordRequest const & nAuthentication::PendingPasswordRequest()
+{
+    return sn_request;
+}
+
+tString const & nAuthentication::PendingPasswordUsername()
+{
+    return sn_answer.username;
+}
+
+void nAuthentication::AnswerPasswordRequest( tString const & username, nScrambledPassword const & scrambled, bool aborted )
+{
+    if ( !PasswordRequestPending() )
+        return;
+    if ( sn_GetNetState() != nCLIENT )
+    {
+        CancelPasswordRequest();
+        return;
+    }
+
+    sn_answer.username = username;
+    sn_answer.scrambled = scrambled;
+    sn_answer.aborted = aborted;
+    sn_answer.automatic = false;
+
+    SendPasswordAnswer();
+}
+
+void nAuthentication::CancelPasswordRequest()
+{
+    sn_answer = nKrawall::nPasswordAnswer();
+    sn_request = nKrawall::nPasswordRequest();
+    sn_answerDeferred = false;
+    s_inUse = false;
 }
 
 // receive a password request
@@ -133,13 +206,15 @@ void nAuthentication::HandlePasswordRequest(nMessage& m)
     if (m.SenderID() > 0 || sn_GetNetState() != nCLIENT)
         Cheater(m.SenderID());
 
-    sn_answer = nKrawall::nPasswordAnswer();
-    sn_request = nKrawall::nPasswordRequest();
-
-    // already in the process: return without answer
-    if ( s_inUse )
+    // already in the process: return without answer (a deferred request is
+    // replaced by the new one; the server repeats its request after a timeout)
+    if ( s_inUse && !sn_answerDeferred )
         return;
     s_inUse = true;
+    sn_answerDeferred = false;
+
+    sn_answer = nKrawall::nPasswordAnswer();
+    sn_request = nKrawall::nPasswordRequest();
 
     // read salt and username from the message
     ReadSalt(m, sn_salt);
@@ -407,6 +482,7 @@ public:
     nLoginProcess( int userID )
     : nMachineDecorator( nMachine::GetMachine( userID ) )
     , checkAddress( true )
+    , virtualPeer( false )
     {
         // install self reference to keep this object alive
         selfReference_ = this;
@@ -522,6 +598,9 @@ private:
 
     //! flag indicating whether the sent server address needs checking
     bool checkAddress;
+
+    //! the sender is reached through a transport (browser client), not a socket
+    bool virtualPeer;
 };
 
 
@@ -951,13 +1030,21 @@ void nLoginProcess::ProcessClientAnswer( nMessage & m )
 
     // store peer address
     sn_GetAdr( m.SenderID(), peerAddress );
-  
+    virtualPeer = sn_IsVirtualPeer( m.SenderID() );
+
     // and go on
     nMemberFunctionRunner::ScheduleMayBlock( *this, &nLoginProcess::Authorize, authority != "" );
 }
 
 static bool sn_trustLAN = false;
 static tSettingItem< bool > sn_TrustLANConf( "TRUST_LAN", sn_trustLAN );
+
+// "host:port" -> "host"
+static tString sn_HostPart( tString const & address )
+{
+    int const colon = address.StrPos( ":" );
+    return colon > 0 ? address.SubStr( 0, colon ) : address;
+}
 
 // sanity check the server address
 bool nLoginProcess::CheckServerAddress()
@@ -1023,6 +1110,20 @@ bool nLoginProcess::CheckServerAddress()
     {
         // all's well
         return true;
+    }
+
+    // a browser client (reached through a transport, not a socket) connected
+    // to a signalling URL and sends its host:port; there is no UDP port to
+    // match (a deployment may proxy wss through 443), so the host alone must
+    // match SERVER_DNS (as given or resolved) or our known address
+    if ( virtualPeer )
+    {
+        tString const host = sn_HostPart( serverAddress );
+        if ( host.Len() > 1 && !host.StartsWith( "*" ) &&
+             ( host == sn_GetMyDNSName() || host == sn_HostPart( trueServerAddress ) || host == sn_HostPart( sn_GetMyAddress() ) ) )
+        {
+            return true;
+        }
     }
 
     // Z-Man: can't remember what this swapping is for. Possibly to accept
