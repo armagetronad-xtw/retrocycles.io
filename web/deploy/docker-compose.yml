@@ -1,0 +1,61 @@
+# The browser client on one host: a WebRTC-enabled game server, Caddy (TLS, the
+# static bundle, signalling proxy, resource proxy) and the bundle from "make dist".
+# See README.md for the steps and .env.example for the variables.
+services:
+  server:
+    image: ${AA_SERVER_IMAGE:-aa-server-webrtc}
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ${AA_SERVER_NAME:-Browser test server}
+      SERVER_PORT: ${AA_GAME_PORT:-4534}
+      TALK_TO_MASTER: ${AA_TALK_TO_MASTER:-0}
+      WEBRTC_ENABLE: "1"
+      WEBRTC_SIGNAL_PORT: "4535"
+      # plain ws:// inside the compose network only; Caddy fronts it
+      WEBRTC_SIGNAL_BIND: "0.0.0.0"
+      WEBRTC_PORT_MIN: ${AA_ICE_PORT_MIN:-50000}
+      WEBRTC_PORT_MAX: ${AA_ICE_PORT_MAX:-50019}
+      # the host's public IP: ICE candidates are rewritten to it (1:1 NAT of
+      # the published UDP range); unset for the local test
+      WEBRTC_PUBLIC_IP: ${AA_PUBLIC_IP:-}
+      # believe the player address Caddy forwards (README.md "Client addresses"):
+      # 4535 is not published, so only containers of this stack reach it. Needs an
+      # image whose entrypoint passes the variable on; for older ones put the same
+      # line into /data/var/autoexec.cfg
+      WEBRTC_TRUSTED_PROXIES: "127.0.0.0/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+    ports:
+      - "${AA_GAME_PORT:-4534}:${AA_GAME_PORT:-4534}/udp"
+      - "${AA_ICE_PORT_MIN:-50000}-${AA_ICE_PORT_MAX:-50019}:${AA_ICE_PORT_MIN:-50000}-${AA_ICE_PORT_MAX:-50019}/udp"
+    volumes:
+      - aa-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      # a DNS name for automatic HTTPS; ":80" for the local plain-http test
+      AA_SITE_ADDRESS: ${AA_SITE_ADDRESS:-:80}
+      AA_SIGNAL_UPSTREAM: server:4535
+      # the resource proxy (README.md "Resources"): allowed upstream hosts, CORS origin
+      AA_RESOURCE_UPSTREAMS: ${AA_RESOURCE_UPSTREAMS:-resource.armagetronad.net}
+      AA_RESOURCE_CORS_ORIGIN: ${AA_RESOURCE_CORS_ORIGIN:-*}
+      # the page's Content-Security-Policy connect-src after 'self' (Caddyfile)
+      AA_CSP_CONNECT: ${AA_CSP_CONNECT:-https: wss:}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./resource_proxy.caddy:/etc/caddy/resource_proxy.caddy:ro
+      - ${AA_SITE_DIR:-../dist}:/srv/site:ro
+      - ${AA_RESOURCE_DIR:-./resource}:/srv/resource:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  aa-data:
+  caddy-data:
+  caddy-config:

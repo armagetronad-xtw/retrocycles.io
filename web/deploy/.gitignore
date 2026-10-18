@@ -1,0 +1,5 @@
+# local settings, never committed
+/.env
+# server build inputs and outputs (build/server.Dockerfile)
+/build/src.tar
+/build/out/

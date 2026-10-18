@@ -1,0 +1,86 @@
+# The resource proxy of the browser client (README.md "Resources"), a Caddy
+# snippet. Import the file at the top level, then inside the site:
+#   import aa_resource_proxy <upstreams> <cors origin> <local override dir>
+#   upstreams   the hosts the proxy may fetch from, a regex alternation
+#               ("resource.armagetronad.net|maps.example.org:8080"); a host
+#               without a port is dialled with https, host:port with plain http
+#   cors origin the Access-Control-Allow-Origin value ("*")
+#   local dir   consulted first, laid out as <host>/<path>
+#
+# GET /resource/<host>/<path> fetches http(s)://<host>/<path> from an
+# allowlisted host (the client's URL with the scheme dropped; the request path
+# keeps the upstream's layout, so the browser's cache stays keyed by the
+# resource path). Only GET/HEAD and only *.xml / *.dtd (maps and their DTDs):
+# not an open proxy. Responses get the CORS header the browser needs and a day
+# of Cache-Control (the files are versioned by name; the client's IndexedDB
+# cache makes each browser fetch a map once anyway). Nothing is stored on the
+# host (no cache module).
+(aa_resource_proxy) {
+	handle_path /resource/* {
+		header {
+			defer
+			>Access-Control-Allow-Origin "{args[1]}"
+			>Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+		}
+		# (handle blocks: Caddy would otherwise sort these respond directives
+		# after the proxy handles below)
+		@preflight method OPTIONS
+		handle @preflight {
+			respond 204
+		}
+		@notread not method GET HEAD
+		handle @notread {
+			respond 405
+		}
+		@notmap not path *.xml *.dtd
+		handle @notmap {
+			respond "only maps and DTDs" 403
+		}
+
+		# the local override directory
+		@override file {
+			root {args[2]}
+			try_files {path}
+		}
+		handle @override {
+			header Cache-Control "public, max-age=86400"
+			root * {args[2]}
+			header X-AA-Resource "local"
+			file_server
+		}
+
+		# the allowlisted upstreams: {re.up.1} = host[:port], {re.up.2} = /path
+		@up path_regexp up ^/({args[0]})(/.*)$
+		handle @up {
+			# the upstream's no-store is replaced: resource files are versioned by name
+			header {
+				defer
+				>Cache-Control "public, max-age=86400"
+				-Pragma
+				-Expires
+			}
+			@plain path_regexp ^/[^/]+:[0-9]+/
+			handle @plain {
+				rewrite * {re.up.2}
+				header X-AA-Resource "proxy http://{re.up.1}"
+				reverse_proxy {re.up.1} {
+					header_up Host {re.up.1}
+				}
+			}
+			handle {
+				rewrite * {re.up.2}
+				header X-AA-Resource "proxy https://{re.up.1}"
+				reverse_proxy {re.up.1}:443 {
+					header_up Host {re.up.1}
+					transport http {
+						tls
+						tls_server_name {re.up.1}
+					}
+				}
+			}
+		}
+		handle {
+			respond "not an allowed resource host" 403
+		}
+	}
+}

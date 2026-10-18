@@ -1,0 +1,65 @@
+# Caddy in front of the browser client, the docker-compose path (README.md).
+#
+# One site: the static bundle (web/dist -> /srv/site), the WebRTC signalling
+# WebSocket of the game server proxied at /signal (the page connects to
+# wss://<host>/signal, Caddy terminates TLS; the server itself speaks plain
+# ws://), and the resource proxy at /resource/ (resource_proxy.caddy, mounted
+# next to this file): the browser client fetches maps through it because the
+# official repository sends no CORS header. The game server keeps its normal
+# RESOURCE_REPOSITORY_SERVER; only the browser client is pointed here
+# (index.html's data-resource-proxy="/resource/").
+#
+# AA_SITE_ADDRESS: the site address. A DNS name (play.example.com) gets a
+# Let's Encrypt certificate automatically; ":80" serves plain http for a local
+# test (docker-compose.yml, README.md).
+# AA_RESOURCE_UPSTREAMS: the hosts the proxy may fetch from, a regex
+# alternation ("resource.armagetronad.net|maps.example.org:8080"); a host
+# without a port is dialled with https, host:port with plain http.
+# AA_RESOURCE_CORS_ORIGIN: the page origin allowed to use the proxy ("*").
+# AA_CSP_CONNECT: what the page may connect to besides itself (Content-Security-Policy
+# connect-src; docker-compose.yml's default "https: wss:").
+import /etc/caddy/resource_proxy.caddy
+
+{$AA_SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# the game server's signalling endpoint (WebSocket upgrade is proxied as is).
+	# The player's address goes along in the request target, replacing anything
+	# the browser put there: the server's WebSocket library drops the headers,
+	# and the server believes it from this proxy only (WEBRTC_TRUSTED_PROXIES,
+	# README.md "Client addresses")
+	handle /signal* {
+		uri query X-Forwarded-For {client_ip}
+		reverse_proxy {$AA_SIGNAL_UPSTREAM:server:4535}
+	}
+
+	# resource proxy: GET /resource/<host>/<path> (resource_proxy.caddy);
+	# /srv/resource is the optional local override directory
+	import aa_resource_proxy "{$AA_RESOURCE_UPSTREAMS:resource.armagetronad.net}" "{$AA_RESOURCE_CORS_ORIGIN:*}" /srv/resource
+
+	# the page and the wasm bundle. Caddy's mime table already maps .wasm to
+	# application/wasm and .data (Emscripten's package) is served as
+	# application/octet-stream; the file names are not hashed, so browsers
+	# must revalidate (ETag) instead of caching for long.
+	handle {
+		root * /srv/site
+		header Cache-Control "no-cache"
+		# cross-origin isolation: performance.now() at 5 us instead of 100 us (the
+		# game clock); nothing on the page is cross-origin (fonts and the bundle
+		# are local, /resource/ is this host)
+		header Cross-Origin-Opener-Policy "same-origin"
+		header Cross-Origin-Embedder-Policy "require-corp"
+		# Content-Security-Policy: no script but the page's own files (no inline script, no eval; wasm
+		# by 'wasm-unsafe-eval', the client's one worker from a blob), no style but its files, nothing
+		# framed or framing it: an injected script cannot run, so it cannot read a password typed into
+		# the page. connect-src: AA_CSP_CONNECT (the platform, ping URLs, signalling).
+		# /client.html, the API test page (one inline script), gets its own.
+		@page not path /client.html
+		header @page Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; font-src 'self'; media-src 'self'; worker-src 'self' blob:; connect-src 'self' {$AA_CSP_CONNECT}; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; frame-ancestors 'none'"
+		@testpage path /client.html
+		header @testpage Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' {$AA_CSP_CONNECT}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+		file_server {
+			precompressed br gzip
+		}
+	}
+}
