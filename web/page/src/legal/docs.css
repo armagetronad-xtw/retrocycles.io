@@ -184,6 +184,41 @@ body.doc {
 
 .doc-dedication .doc-dedication-sign { color: var(--dim); }
 
+/* the repository link on About: GitHub's own small button shape (name | stars), one hairline */
+.doc a.doc-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  padding: calc(8 * var(--u)) calc(14 * var(--u));
+  border: 1px solid var(--dim);
+  color: var(--ivory);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.doc a.doc-repo:hover { border-color: var(--grey); }
+
+.doc-repo svg {
+  width: calc(18 * var(--u));
+  height: calc(18 * var(--u));
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.doc-repo-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  margin-left: calc(4 * var(--u));
+  padding-left: calc(14 * var(--u));
+  border-left: 1px solid var(--dim);
+  color: var(--grey);
+}
+
 .doc ul,
 .doc ol {
   margin: 0 0 calc(14 * var(--u));

@@ -40,9 +40,9 @@ export interface LegalConfig {
   auditRetention: string | null; // how long security (audit) logs are kept (not built yet)
   serverLogRetention: string | null; // how long official rooms keep their own logs
 
-  // the public repository of the browser port (the GPL source offer). null while it is
-  // private: the About page then makes the written offer (source by email) instead of a
-  // link. `sourceCommitUrl` turns repository + commit into a link to that exact tree.
+  // the public repository of the browser port (the GPL source). About links it, with its
+  // GitHub stars read at build time; null: About makes the written offer (source by email)
+  // instead. `sourceCommitUrl` turns repository + commit into a link to that exact tree.
   sourceRepoUrl: string | null;
   sourceCommitUrl: string; // "{repo}" and "{commit}" are replaced
   // optional: an archive of the exact source served next to the bundle (e.g.
@@ -75,7 +75,7 @@ export const LEGAL: LegalConfig = {
   auditRetention: "for 12 months",
   serverLogRetention: "for up to five weeks",
 
-  sourceRepoUrl: null,
+  sourceRepoUrl: "https://github.com/nanubula/retrocycles.io",
   sourceCommitUrl: "{repo}/tree/{commit}",
   sourceArchiveUrl: null,
 

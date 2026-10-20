@@ -10,8 +10,9 @@
 //   {{key}}                 a config or build value (escaped); missing -> a placeholder cell
 //   {{key:mail}}            an email value as a mailto link
 //   {{todo:words}}          always a placeholder cell: a decision the operator must make
-//   <!--rc:if flag-->A<!--rc:else-->B<!--rc:end-->   (flags: sourcePublic, sourceArchive,
-//                           ageConfirmation, commitKnown); not nested
+//   <!--rc:if flag-->A<!--rc:else-->B<!--rc:end-->   (flags: sourcePublic, repoWithStars,
+//                           repoWithoutStars, sourceOffer, sourceArchive, ageConfirmation,
+//                           commitKnown); not nested
 //
 // The document's id is its <body data-doc="...">. Anything left unfilled ({{ or <!--rc:)
 // fails the build. The licence texts (COPYING.txt, AUTHORS at the repository root) are
@@ -49,6 +50,9 @@ const LABELS: Partial<Record<keyof LegalConfig | string, string>> = {
 export interface BuildFacts {
   commit: string;
   buildDate: string;
+  // the public repository's stars, read from GitHub when the bundle is built (RC_REPO_STARS
+  // overrides it); null: not known, and About shows the link without a count
+  stars: number | null;
 }
 
 function gitCommit(): string | null {
@@ -65,7 +69,35 @@ function gitCommit(): string | null {
 export function buildFacts(): BuildFacts {
   const env = (process.env.RC_SOURCE_COMMIT || "").trim();
   const commit = /^[0-9a-f]{7,40}(-dirty)?$/.test(env) ? env : gitCommit() || "unknown";
-  return { commit, buildDate: new Date().toISOString().slice(0, 10) };
+  return { commit, buildDate: new Date().toISOString().slice(0, 10), stars: null };
+}
+
+function repoUrl(): string | null {
+  return (process.env.RC_SOURCE_REPO_URL || "").trim() || LEGAL.sourceRepoUrl;
+}
+
+// "owner/name" of a GitHub repository URL, else null
+function githubRepo(url: string | null): string | null {
+  const m = url ? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+?)\/?$/.exec(url) : null;
+  return m ? m[1] : null;
+}
+
+async function repoStars(): Promise<number | null> {
+  const env = (process.env.RC_REPO_STARS ?? "").trim();
+  if (/^\d+$/.test(env)) return Number(env);
+  const repo = githubRepo(repoUrl());
+  if (!repo) return null;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}`, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { stargazers_count?: unknown };
+    return typeof body.stargazers_count === "number" ? body.stargazers_count : null;
+  } catch {
+    return null;
+  }
 }
 
 function esc(s: string): string {
@@ -83,7 +115,7 @@ interface Values {
 }
 
 function values(facts: BuildFacts): Values {
-  const repo = (process.env.RC_SOURCE_REPO_URL || "").trim() || LEGAL.sourceRepoUrl;
+  const repo = repoUrl();
   const commitKnown = facts.commit !== "unknown";
   const pureCommit = facts.commit.replace(/-dirty$/, "");
   const sourceUrl = repo && commitKnown ? LEGAL.sourceCommitUrl.replace("{repo}", repo.replace(/\/$/, "")).replace("{commit}", pureCommit) : null;
@@ -101,6 +133,8 @@ function values(facts: BuildFacts): Values {
     auditRetention: LEGAL.auditRetention,
     serverLogRetention: LEGAL.serverLogRetention,
     sourceRepoUrl: repo,
+    sourceRepoName: repo ? githubRepo(repo) ?? repo.replace(/^https?:\/\//, "") : null,
+    repoStars: facts.stars === null ? null : String(facts.stars),
     sourceUrl,
     sourceArchiveUrl: archive,
     siteHost: LEGAL.siteHost,
@@ -113,6 +147,9 @@ function values(facts: BuildFacts): Values {
     pending: new Set(LEGAL.pending as string[]),
     flags: {
       sourcePublic: !!sourceUrl,
+      repoWithStars: !!repo && facts.stars !== null,
+      repoWithoutStars: !!repo && facts.stars === null,
+      sourceOffer: !repo,
       sourceArchive: !!archive,
       ageConfirmation: LEGAL.requireAgeConfirmation,
       commitKnown,
@@ -169,9 +206,7 @@ function foot(doc: string, v: Values): string {
       ? `<a href="../${d.id}/" aria-current="page">${esc(d.title)}</a>`
       : `<a href="../${d.id}/">${esc(d.title)}</a>`
   ).join("\n");
-  const build = v.flags.commitKnown
-    ? `This build: <span class="doc-commit">${esc(v.text.commitShort!)}</span>, ${esc(v.text.buildDate!)}. <a href="../about/#source">Source code</a>.`
-    : `<a href="../about/#source">Source code</a>.`;
+  const build = `<a href="../about/#source">Source code</a>.`;
   return [
     '<footer class="doc-foot">',
     '<nav class="doc-nav" aria-label="Retrocycles.io documents">',
@@ -212,6 +247,10 @@ export function legalPages(): Plugin {
   const facts = buildFacts();
   return {
     name: "retrocycles-legal-pages",
+    async buildStart() {
+      facts.stars = await repoStars();
+      this.info("repository stars " + (facts.stars ?? "(unknown)"));
+    },
     transformIndexHtml: {
       order: "pre",
       handler: (html) => renderDoc(html, facts)

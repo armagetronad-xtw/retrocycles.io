@@ -34,6 +34,21 @@ export function randomName(): string {
   }
 }
 
+// a name the page gave (randomName or the client's default), not one the player chose
+export function isGivenName(value: string): boolean {
+  const name = value.trim();
+  if (name === "" || name === DEFAULT_NAME) return true;
+  const first = NAME_FIRST.find((w) => name.startsWith(w));
+  return !!first && NAME_SECOND.includes(name.slice(first.length));
+}
+
+// the name to play under once signed in: the one the player already plays under, unless the
+// page gave it, then the handle (null: not chosen yet, the name stays). Never the account's
+// name: external sign-in fills that from the Google full name or the Discord name
+export function signedInName(current: string, handle: string | null): string {
+  return handle && isGivenName(current) ? handle : current;
+}
+
 // COLOR_*_1 are 0..15 (API.md: the cycle colour, r/15 etc.)
 export function playerColor(aa: Aa): string {
   const part = (name: string) => {

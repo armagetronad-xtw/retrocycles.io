@@ -960,7 +960,7 @@ attempts of a page session, 1, 2, ...):
 | `room_joined` | `server` (the room's server id, `[A-Za-z0-9_.:-]{1,64}`), `netId` (0 to 65535: the page's own player there, `players[].id` with `local`) | the page is in a platform room's game (each connect, each move; again when the net id changes). The room's roster names the same net id, so the platform finds where a room's page players play (the page session's surface: a desktop browser, a phone, the X embed) |
 | `link_copied` | `what` (`[a-z0-9_-]{1,32}`: `invite`, the in-game INVITE link) | the player copied a share link (the invite link also carries `c=invite`, so the page loads it brings count as that campaign) |
 | `full_game_opened` | – | the X embed's way out to the whole page was clicked |
-| `client_error` | `kind` (`webgl_lost`/`out_of_memory`/`wasm_abort`/`script`/`promise`), `ms` (since navigation start) | something broke: a lost WebGL context, a wasm abort, an uncaught error or promise rejection of the page's own scripts; never the message; at most 5 per page session |
+| `client_error` | `kind` (`webgl_lost`/`out_of_memory`/`wasm_abort`/`script`/`promise`), `ms` (since navigation start), optional `where` (`page`/`api`/`client`/`other`/`unknown`: which of the page's own files, for `script` and `promise`) | something broke: a lost WebGL context, a wasm abort, an uncaught error or promise rejection of the page's own scripts (a rejection with a stack of only other origins is not sent; one with no stack is `unknown`); never the message nor the file name; at most 5 per page session |
 | `clip_saved`, `clip_shared` | `ms`? / `via`? (`[a-z0-9_-]{1,32}`) | reserved for clips |
 
 Adding an event or a prop is additive: an older platform rejects the unknown event or drops the

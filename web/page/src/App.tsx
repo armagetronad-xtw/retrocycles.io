@@ -41,7 +41,7 @@ import { askFriend, reportPresence, sendMessage } from "./platform/client";
 import { onMessage, useConversations, useEventStream, useUnread } from "./platform/messages";
 import { directEntry } from "./chat/sort";
 import type { FriendInfo, PageState } from "./platform/types";
-import { configText, playerColor } from "./player";
+import { configText, playerColor, signedInName } from "./player";
 import { isMe } from "./chat/sort";
 import type { ChatSocial } from "./chat/useChat";
 import { focusableIn, isTextField, moveFocus, wouldWrap } from "./keyboard";
@@ -50,7 +50,7 @@ import { embedSoundOff } from "./embedSound";
 import { MODES, modeIndex, setPrivateRooms, type Mode } from "./modes";
 import { discordJoinable, invitedServer, loadServers, serverCode, signalUrl } from "./servers";
 import { Banned, banText, iceOptionsFor, loginTokenFor, platformState, refreshPlatformUser } from "./platform/session";
-import { noteWebRtcBlocked, webRtcBlocked } from "./platform/webrtcFallback";
+import { noteWebRtcBlocked, noteWebRtcWorked, webRtcBlocked } from "./platform/webrtcFallback";
 import { NOTE_MAX, REASONS, reportsOffered, sendReport, type ReasonId, type ReportResult, type ReportTarget, type RoomLine } from "./platform/reports";
 import type { ChatEntry } from "./chat/sort";
 import { DUEL_ARRIVE_MS, FindFailure, copyText, findRoom, giveBackSeat, inviteLink, keepLinkOpen, livePlayers, platformServers, preferredRegion, privateRoomLink, privateRoomTicket, privateRoomsEnabled, quickPlayEnabled, readInvite, readPrivateInvite, regionLatencies, type FindingPhase, type JoinTarget } from "./platform/quickplay";
@@ -122,6 +122,8 @@ const MAX_REROUTES = 2;
 const DIRECT_STALL_MS = 20000;
 // how long a server's question to move the player elsewhere stays up unanswered (then: stay)
 const MOVE_ASK_MS = 30000;
+// a bare flag: this browser's game name was checked once for an account name a sign-in had copied
+const ACCOUNT_NAME_DROPPED_KEY = "rc.accountNameDropped";
 
 // the states in which scene(k) is allowed (API.md: from idle, disconnected, scene)
 function canScene(s: SessionState): boolean {
@@ -1121,6 +1123,8 @@ export function App() {
     const a = attempt.current;
     if (a && !a.done && (state.state === "syncing" || state.state === "playing")) {
       a.setRoute(state.ice);
+      // in over WebRTC (direct or relayed): a block remembered from an earlier visit is over
+      if (state.ice?.local && state.ice.local !== "websocket") noteWebRtcWorked();
       if (state.state === "syncing" || a.current === "handshake") {
         a.ok("handshake");
         a.begin("sync");
@@ -1189,8 +1193,9 @@ export function App() {
     // the signalling answered but no WebRTC path opened: this network lets neither UDP nor the
     // relay through, so the next connects (the reroute below too) go over the WebSocket. Not for a
     // Direct Connect: that one server's ports say nothing about this network's other ways out
-    if (state.state === "disconnected" && !wasStalled && !direct && a && !a.done && !WEBSOCKET_TRANSPORT && state.reason
-      && reasonOf(state.reason, a.current ?? "signalling") === "ice") noteWebRtcBlocked();
+    const iceBlocked = state.state === "disconnected" && !wasStalled && !direct && !!a && !a.done && !WEBSOCKET_TRANSPORT && !!state.reason
+      && reasonOf(state.reason, a.current ?? "signalling") === "ice";
+    if (iceBlocked) noteWebRtcBlocked();
     const unreached = state.state === "disconnected" && !!seat.current && !failedMove && !moving.current
       && (wasStalled || (!!state.reason && state.reason !== "requested"));
     const again = reroute.current;
@@ -1201,7 +1206,8 @@ export function App() {
       setGameServerId(null);
       setGameCode(null);
       if (a && !a.done) a.fail(wasStalled ? "signalling" : reasonOf(state.reason, a.current ?? "signalling"));
-      const avoid = [...again.avoid, seatRoom.current];
+      // ICE that found no path is this network, not the room: the WebSocket retry may go back to it
+      const avoid = iceBlocked ? again.avoid : [...again.avoid, seatRoom.current];
       console.info("quickplay: " + seatRoom.current + " could not be reached (" + (wasStalled ? "no answer" : state.reason) + "), asking for another room");
       dropSeat(true);
       leaving.current = false;
@@ -1408,15 +1414,34 @@ export function App() {
   const playingNow = real === "playing" || real === "local";
 
   // ---- inside a Discord Activity (discord.ts) ----
-  // the game name is the account's, as a sign-in in the Profile makes it (Discord signs the
-  // player in before anything is shown)
+  // the game name is the one played under, else the handle, as a sign-in in the Profile makes
+  // it (Discord signs the player in before anything is shown); never the Discord name
   const discordUser = DISCORD && platform.mode === "platform" && platform.user && !platform.user.isGuest ? platform.user : null;
   const discordNamed = useRef<string | null>(null);
   useEffect(() => {
     if (!aa || !discordUser || discordNamed.current === discordUser.id) return;
     discordNamed.current = discordUser.id;
-    player.setName(discordUser.name);
+    const item = aa.getConfig("PLAYER_1");
+    player.setName(signedInName(item ? configText(item.value) : "", discordUser.handle));
   }, [aa, discordUser, player]);
+
+  // an older sign-in made the game name the account's: for a Google account the full
+  // name. Once per browser a name still equal to an account name of more than one word
+  // becomes the handle (one typed since then stays)
+  const signedIn = platform.mode === "platform" && platform.user && !platform.user.isGuest ? platform.user : null;
+  useEffect(() => {
+    if (!aa || !signedIn) return;
+    try {
+      if (localStorage.getItem(ACCOUNT_NAME_DROPPED_KEY)) return;
+      localStorage.setItem(ACCOUNT_NAME_DROPPED_KEY, "1");
+    } catch {
+      return;
+    }
+    const item = aa.getConfig("PLAYER_1");
+    const current = item ? configText(item.value).trim() : "";
+    const account = signedIn.name.trim();
+    if (current === account && /\s/.test(account) && account !== signedIn.handle) player.setName(signedIn.handle);
+  }, [aa, signedIn, player]);
 
   // the account Discord made has a suggested handle (as a popup sign-up's): the first time the
   // home screen is up, the Profile asks for one, once per launch. The launch's game comes first

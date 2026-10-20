@@ -6142,6 +6142,73 @@ void gCycle::SyncEnemy ( const eCoord& )
                 }
             }
 
+            // with exactly two turns missed (the count went up by three) the path between has two corners
+            // and three legs: along the old line, across, and back along the old line's axis to the last
+            // turn the sync names. Back the other way (a U-turn, the usual quick double turn) the server's
+            // distance fixes both corners; the same way on (a staircase) it does not, and that case is left
+            // as it was. Taken only when the lines and distances agree with a U-turn.
+            if ( !rebuilt && anchored && sync.turns == this->turns + 3 && sync.distance > confirmed.distance && sync.time > confirmed.time )
+            {
+                eCoord const & dir0 = currentWall->dir;
+                REAL const dirLength = sqrt( dir0.NormSquared() );
+                eCoord const d0 = dir0 * ( 1 / dirLength );
+                eCoord const toLast = sync.lastTurn - confirmed.pos;
+                REAL const along = eCoord::F( toLast, d0 );                  // a - c, in distance
+                eCoord const across = toLast - d0 * along;
+                REAL const acrossLength = sqrt( across.NormSquared() );      // b
+                REAL const lastTurnDist = sync.distance - sqrt( ( sync.pos - sync.lastTurn ).NormSquared() );
+                REAL const span = sync.distance - confirmed.distance;
+                REAL const path = lastTurnDist - confirmed.distance;         // a + b + c
+                REAL const syncDirLength = sqrt( sync.dir.NormSquared() );
+                REAL const first = ( path - acrossLength + along ) * .5f;    // a
+                REAL const back = ( path - acrossLength - along ) * .5f;     // c
+                REAL const slack = .5f + .01f * span;
+
+                // the last leg runs back along the old axis, so the new direction is across it
+                if ( acrossLength > .01f && first >= 0 && back > slack &&
+                     fabs( eCoord::F( sync.dir, d0 ) ) < .01f * syncDirLength )
+                {
+                    eCoord const cornerA = confirmed.pos + d0 * first;
+                    eCoord const cornerB = cornerA + across;
+                    REAL const distA = confirmed.distance + first;
+                    REAL const distB = distA + acrossLength;
+                    REAL const timeA = confirmed.time + ( sync.time - confirmed.time ) * ( distA - confirmed.distance ) / span;
+                    REAL const timeB = confirmed.time + ( sync.time - confirmed.time ) * ( distB - confirmed.distance ) / span;
+                    REAL const lastTurnTime = confirmed.time + ( sync.time - confirmed.time ) * path / span;
+                    REAL const startBuildWallAt = spawnTime_ + sg_cycleWallTime;
+
+                    // the old wall to the first corner, dropped like an ordinary turn's
+                    currentWall->Update( timeA, cornerA );
+                    lastWall=currentWall;
+                    currentWall->CopyIntoGrid( grid );
+                    {
+                        tControlledPTR< gNetPlayerWall > bounce( currentWall );
+                        currentWall=NULL;
+                    }
+
+                    // the leg across, dropped here; the leg back is dropped below, the new wall starts at the last turn
+                    if ( timeA > startBuildWallAt )
+                    {
+                        gNetPlayerWall * acrossWall = new gNetPlayerWall
+                                    (this,cornerA,Grid()->GetDirection( Grid()->DirectionWinding( across ) ),timeA,distA);
+                        acrossWall->Update( timeB, cornerB );
+                        lastWall=acrossWall;
+                        acrossWall->CopyIntoGrid( grid );
+                        tControlledPTR< gNetPlayerWall > bounce( acrossWall );
+                    }
+                    if ( timeB > startBuildWallAt )
+                    {
+                        currentWall=new gNetPlayerWall
+                                    (this,cornerB,Grid()->GetDirection( Grid()->DirectionWinding( d0 * -1 ) ),timeB,distB);
+                        currentWall->Update( lastTurnTime, sync.lastTurn );
+                    }
+                    crossPos = sync.lastTurn;
+                    crossDist = lastTurnDist;
+                    crossTime = lastTurnTime;
+                    rebuilt = true;
+                }
+            }
+
             if ( !rebuilt )
             {
                 if ( anchored && confirmed.time > currentWall->tBeg )

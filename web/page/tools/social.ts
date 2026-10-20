@@ -7,9 +7,11 @@
 //                      shows the square image until it is pressed, where it cannot frame.
 //   play/index.html    emitted (and served by the dev server): the /play/ link, the same tags,
 //                      on to /?play (Quick Play at once) by public/play/forward.js.
-//   robots.txt,        emitted: for search engines (Google Search Console). The sitemap lists
-//   sitemap.xml        the page and the documents (src/legal/config.ts DOCS); /play/ only
-//                      forwards, and client.html is the API test page, kept out of search.
+//   robots.txt,        emitted: for search engines (Google Search Console, Bing Webmaster
+//   sitemap.xml,       Tools). sitemap.xml is an index of two: sitemap-pages.xml, the page and
+//   sitemap-pages.xml  the documents (src/legal/config.ts DOCS), and /news/sitemap.xml, which
+//                      the platform writes from the published posts. /play/ only forwards, and
+//                      client.html is the API test page, kept out of search.
 //
 // The site is `RC_SITE_URL`, else https://<LEGAL.siteHost> (src/legal/config.ts). The images
 // are public/share/ (NOTICE.txt there).
@@ -96,13 +98,20 @@ export function socialCards(): Plugin {
     generateBundle() {
       this.emitFile({ type: "asset", fileName: "play/index.html", source: playPage() });
       this.emitFile({ type: "asset", fileName: "robots.txt", source: robots() });
-      this.emitFile({ type: "asset", fileName: "sitemap.xml", source: sitemap() });
+      this.emitFile({ type: "asset", fileName: "sitemap.xml", source: sitemapIndex() });
+      this.emitFile({ type: "asset", fileName: "sitemap-pages.xml", source: sitemap() });
     }
   };
 }
 
 function robots(): string {
   return ["User-agent: *", "Disallow: /client.html", "", "Sitemap: " + site() + "/sitemap.xml", ""].join("\n");
+}
+
+// the platform's /news/sitemap.xml lists the news and its posts (Caddy sends /news/* there)
+function sitemapIndex(): string {
+  const maps = ["/sitemap-pages.xml", "/news/sitemap.xml"].map((path) => `  <sitemap><loc>${site()}${path}</loc></sitemap>`);
+  return ['<?xml version="1.0" encoding="UTF-8"?>', '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', ...maps, "</sitemapindex>", ""].join("\n");
 }
 
 function sitemap(): string {

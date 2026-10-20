@@ -23,6 +23,7 @@ import type { SaveTrigger } from "./savePrompt";
 import { platformSession, platformState, setPageLoad } from "./session";
 import { DISCORD, EMBED } from "../links";
 import { cookieChoice, gaEvent, onCookieChoice } from "../googleTag";
+import { type ErrorWhere, whereOfFile, whereOfStack } from "./errorWhere";
 
 export type EventName =
   | "page_view"
@@ -354,26 +355,32 @@ export function endGame(hidden = false) {
 
 // ---- client_error: what broke, never the message (no free text leaves the page) ----------------
 // A lost WebGL context, a wasm abort (out of memory or another), an uncaught script error or
-// promise rejection from the page's own files. At most a few per page load.
+// promise rejection from the page's own files. At most a few per page load. A script error or a
+// rejection says which of our files it came from (where: errorWhere.ts), a fixed code.
 
 export type ClientErrorKind = "webgl_lost" | "out_of_memory" | "wasm_abort" | "script" | "promise";
 const MAX_ERRORS = 5;
 let errorsSent = 0;
 
-export function clientError(kind: ClientErrorKind) {
+export function clientError(kind: ClientErrorKind, where?: ErrorWhere) {
   if (errorsSent >= MAX_ERRORS) return;
   errorsSent++;
-  track("client_error", { kind, ms: sinceNavigation() });
+  track("client_error", { kind, ms: sinceNavigation(), where });
 }
 
 export function watchErrors(canvas: HTMLCanvasElement | null) {
   canvas?.addEventListener("webglcontextlost", () => clientError("webgl_lost"));
-  // only the page's own scripts: an extension's errors are not ours
-  const ours = (file: string | undefined) => !!file && file.startsWith(location.origin);
+  // only the page's own scripts: an extension's or a Google tag's errors are not ours
   window.addEventListener("error", (e) => {
-    if (e.target === window && ours(e.filename)) clientError("script");
+    if (e.target !== window) return;
+    const where = whereOfFile(e.filename, location.origin);
+    if (where) clientError("script", where);
   });
-  window.addEventListener("unhandledrejection", () => clientError("promise"));
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason: unknown = e.reason;
+    const where = whereOfStack(reason instanceof Error ? reason.stack : undefined, location.origin);
+    if (where) clientError("promise", where);
+  });
 }
 
 function resumeGame() {
@@ -503,7 +510,7 @@ export class ConnectAttempt {
   private noRoomSent = false;
 
   // transport "websocket": this connect goes over the signalling WebSocket because WebRTC failed
-  // earlier on this tab (webrtcFallback.ts)
+  // earlier (webrtcFallback.ts)
   constructor(mode: ConnectMode, transport?: "websocket") {
     this.attempt = ++attempts;
     this.mode = mode;

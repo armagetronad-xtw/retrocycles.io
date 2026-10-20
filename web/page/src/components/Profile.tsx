@@ -22,7 +22,7 @@ import { answerCheck } from "../platform/linking";
 import { progressionOn, refreshProgression, useProgression } from "../platform/progression";
 import { refreshPlatformUser, setPlatformUser } from "../platform/session";
 import type { AccountInfo, ExternalResult, GamePasswordInfo, LinkCode, LinkedIdInfo, NewGamePassword, PendingLink, PlatformState, PlatformUser, ProviderInfo, SessionInfo } from "../platform/types";
-import { NAME_MAX, randomName } from "../player";
+import { NAME_MAX, randomName, signedInName } from "../player";
 import { SHARED_COMPUTER_KEY } from "./Settings";
 import { ColorInput } from "./ColorInput";
 import { SheetClose } from "./SheetClose";
@@ -259,13 +259,16 @@ export const Profile = forwardRef<ProfileHandle, ProfileProps>(function Profile(
     }
   }, []);
 
-  // someone else is playing now: the page takes their name (their account's), else a new one
+  // someone else is playing now: a guest gets their name or a new one; an account keeps the
+  // name played under (signedInName, once the handle is known). Never the account's name:
+  // external sign-in fills that from the Google full name or the Discord name
+  const playing = rawName ?? name;
   const become = useCallback(
     (next: PlatformUser | null, guestName?: string) => {
       setPlatformUser(next);
       setAccount(null);
       setSessions(null);
-      onName(next && !next.isGuest ? next.name : guestName ?? randomName());
+      if (!next || next.isGuest) onName(guestName ?? randomName());
     },
     [onName]
   );
@@ -275,10 +278,11 @@ export const Profile = forwardRef<ProfileHandle, ProfileProps>(function Profile(
       become(next);
       setPrefill(null);
       const a = await loadAccount();
+      if (!a?.needsHandle) onName(signedInName(playing, next.handle));
       if (a?.needsHandle) go("handle", null);
       else go("home", say);
     },
-    [become, go, loadAccount]
+    [become, go, loadAccount, onName, playing]
   );
 
   // guest -> account (usage events): only from a guest session, only the method and kind
@@ -331,6 +335,8 @@ export const Profile = forwardRef<ProfileHandle, ProfileProps>(function Profile(
     run(async () => {
       const next = await api.chooseHandle(apiUrl, handle);
       setPlatformUser(next);
+      // a name the page gave, kept while the handle was only suggested, becomes the handle
+      onName(signedInName(playing, next.handle));
       await loadAccount();
       go("home", t("profile.notice.yourId", { gid: next.gid }));
     });
@@ -583,6 +589,7 @@ export const Profile = forwardRef<ProfileHandle, ProfileProps>(function Profile(
       if (started?.guest && r.provider) claim(true, r.provider, next.id === started.userId ? "signup" : "signin");
       become(next);
       const a = await loadAccount();
+      if (!r.needsHandle && !a?.needsHandle) onName(signedInName(playing, next.handle));
       if (r.needsHandle || a?.needsHandle) go("handle");
       else go("home", t("profile.notice.signedInWith", { provider: name, gid: next.gid }));
     });
