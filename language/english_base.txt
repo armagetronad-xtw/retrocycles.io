@@ -634,6 +634,7 @@ camera_glance_pitch_help	Position of the glance camera: how much does it look up
 
 camera_glance_snap_help   Essentially ups the turn speed while glancing. Helpful for immediately glancing in a direction after turning.
 camera_glance_hold_help   Hold the glance even after turning in a different direction, like 0.4 does.
+camera_glance_takeover_help   Releases glances when you turn the same direction as glancing.
 
 camera_server_glance_back_help		Position of the server glance camera: how much is it moved back from the cycle?
 camera_server_glance_rise_help		Position of the server glance camera: how much is it moved up from the cycle?

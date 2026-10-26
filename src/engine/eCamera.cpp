@@ -39,7 +39,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "rSysdep.h"
 #include "tConsole.h"
 #include "ePlayer.h"
-#include "../tron/gCycle.h"
 #include "eAdvWall.h"
 #include "nConfig.h"
 #include "eFloor.h"
@@ -273,6 +272,9 @@ static nSettingItem<REAL> s_iSGRise("CAMERA_SERVER_GLANCE_RISE", s_serverGlanceR
 static nSettingItem<REAL> s_iSGBackSpeed("CAMERA_SERVER_GLANCE_BACK_FROMSPEED", s_serverGlanceBackSpeed);
 static nSettingItem<REAL> s_iSGRiseSpeed("CAMERA_SERVER_GLANCE_RISE_FROMSPEED", s_serverGlanceRiseSpeed);
 static nSettingItem<REAL> s_iSGPitch("CAMERA_SERVER_GLANCE_PITCH", s_serverGlancePitch);
+
+static bool se_takeOverGlancing = true;
+static tSettingItem< bool > se_takeOverGlancingConf( "CAMERA_GLANCE_TAKEOVER", se_takeOverGlancing );
 
 // turn speed of internal camera
 static REAL s_inTurnSpeed=40;
@@ -517,11 +519,13 @@ bool eCamera::Act(uActionCamera *Act,REAL x){
     int turn=0;
     bool takeOverGlance = false;
     if (eGameObject::se_turnLeft==*reinterpret_cast<uActionPlayer *>(Act)){
-        //takeOverGlance = glancingLeft || glancingBack;
+        if (se_takeOverGlancing)
+            takeOverGlance = glancingLeft || glancingBack;
         turn=-1;
     }
     if (eGameObject::se_turnRight==*reinterpret_cast<uActionPlayer *>(Act)){
-        //takeOverGlance = glancingRight || glancingBack;
+        if (se_takeOverGlancing)
+            takeOverGlance = glancingRight || glancingBack;
         turn=1;
     }
 
@@ -1795,16 +1799,9 @@ void eCamera::Timestep(REAL ts){
                     {
                         // for some reason using gCycle's Direction instead of the generic
                         // fixes occasional glance issues here
-                        gCycle * c = dynamic_cast<gCycle *>(Center());
-                        if( c )
-                        {
-                            glancingPos = c->Direction();
-                            glancingPos.Normalize();
-                        }
-                        else
-                        {
-                            glancingPos = cycleDir;
-                        }
+                        glancingPos = Center()->Direction();
+                        glancingPos.Normalize();
+                        
                         glancingLast = true;
                     }
                 }
