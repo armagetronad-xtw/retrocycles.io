@@ -412,6 +412,8 @@ void eCamera::MyInit(){
     }
 
     glancingForward=glancingBack=glancingLeft=glancingRight=false;
+    glancingLast = false;
+    returnGlanceRequest = false;
     glanceSmooth=glanceSmoothAbs=0;
 
     lastSwitch=-100;
@@ -1786,34 +1788,56 @@ void eCamera::Timestep(REAL ts){
             {
                 turnSpeed += GLANCE_SPEED;
             }
+            else if( returnGlanceRequest )
+            {
+                turnSpeed += GLANCE_SPEED;
+                if( (( dir - ( Center()->Direction() ) ).NormSquared()) < 0.01 )
+                {
+                    returnGlanceRequest = false;
+                }
+            }
             
             eCoord cycleDir = CenterCycleDir();
             
             if( se_holdGlancing )
             {
-                static bool glancingLast = false;
-                static eCoord glancingPos;
                 if( !glancingLast )
                 {
                     if( glancingBack || glancingLeft || glancingRight || glancingForward )
                     {
                         // for some reason using gCycle's Direction instead of the generic
                         // fixes occasional glance issues here
-                        glancingPos = Center()->Direction();
-                        glancingPos.Normalize();
+                        glanceDirAbs = Center()->Direction();
+                        glanceDirAbs.Normalize();
                         
                         glancingLast = true;
+                        returnGlanceRequest = false;
                     }
                 }
                 else
                 {
                     if( glancingBack || glancingLeft || glancingRight || glancingForward )
                     {
-                        cycleDir = glancingPos;
+                        cycleDir = glanceDirAbs;
+                        glanceDirLast = glanceDirAbs.Turn( glanceDir_ );
                     }
                     else
                     {
                         glancingLast = false;
+                        REAL s = (( glanceDirAbs - cycleDir ).NormSquared());
+                        // only use our own hack if the hold actually did anything
+                        if( s > 0.01 )
+                        {
+                            dir = glanceDirLast;
+                            
+                            // use our own glance return method instead of the standard one
+                            glanceSmooth = 0;
+                            returnGlanceRequest = true;
+                            glanceDirLast = cycleDir;
+                            
+                            // without this we have one frame of the camera being the wrong direction
+                            return Timestep(ts);
+                        }
                     }
                 }
             }

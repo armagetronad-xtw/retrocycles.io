@@ -104,6 +104,10 @@ protected:
     bool glancingLeft,glancingRight,glancingBack,glancingForward;
     REAL glanceSmooth, glanceSmoothAbs;
     eCoord glanceDir_;
+    
+    bool glancingLast;
+    eCoord glanceDirAbs, glanceDirLast;
+    bool returnGlanceRequest;
 
     bool renderingMain_;	// flag indicating whether the current rendering process is the main process or just a mirror effect
 
