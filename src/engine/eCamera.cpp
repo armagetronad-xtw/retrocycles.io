@@ -2027,6 +2027,35 @@ void eCamera::Timestep(REAL ts){
                 if ( userCameraControl < .25  && se_ClampCamera(mode) )
                 {
                     bound = true;
+                    
+                    if( se_holdGlancing )
+                    {
+                        if( !glancingLast )
+                        {
+                            if( glancingBack || glancingLeft || glancingRight || glancingForward )
+                            {
+                                glanceDirAbs = Center()->Direction();
+                                glanceDirAbs.Normalize();
+                                
+                                glancingLast = true;
+                            }
+                        }
+                        else
+                        {
+                            if( glancingBack || glancingLeft || glancingRight || glancingForward )
+                            {
+                                // super hacky, probably doesn't work in all cases
+                                // glanceDir = glanceDirAbs + glanceDir - centerCycleDir
+                                eCoord c = glanceDirAbs.Turn( glanceDir_ );
+                                glanceDir_ = (CenterCycleDir().Conj()).Turn(c);
+                            }
+                            else
+                            {
+                                glancingLast = false;
+                            }
+                        }
+                    }
+                    
                     eCoord glancePos = Glance( newpos, glanceDir_ );
                     Bound( ts, glancePos );
                     newpos = Glance( glancePos, glanceDir_.Conj() );
